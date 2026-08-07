@@ -22,7 +22,10 @@ supabase_key = st.secrets.get("SUPABASE_KEY", "")
 supabase: Client = None
 if supabase_url and supabase_key:
     try:
-        supabase = create_client(supabase_url, supabase_key)
+        supabase = create_client(
+            re.sub(r'[^\x00-\x7F]+', '', str(supabase_url)).strip(),
+            re.sub(r'[^\x00-\x7F]+', '', str(supabase_key)).strip()
+        )
     except Exception:
         supabase = None
 
@@ -113,7 +116,7 @@ with st.sidebar:
     st.info(f"🎯 Current CEFR Level: {current_lvl}")
 
 # ==========================================
-# 5. GỌI GROQ API
+# 5. GỌI GROQ API (CHỐNG LỖI ADAPTER/UNICODE)
 # ==========================================
 SYSTEM_PROMPT = "You are a Senior Business English AI Instructor. Answer clearly in professional English."
 
@@ -122,9 +125,16 @@ def generate_ai_response(prompt_input):
         st.error("Groq API Key missing!")
         return None
 
-    url = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
+    # Lọc sạch hoàn toàn các ký tự phi ASCII/ký tự ẩn khỏi API Key và URL
+    clean_key = re.sub(r'[^\x00-\x7F]+', '', str(api_key)).strip()
+    
+    # Ghép chuỗi URL trực tiếp để bảo vệ schema https://
+    domain = "api.groq.com"
+    endpoint = "/openai/v1/chat/completions"
+    url = f"https://{domain}{endpoint}"
+
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {clean_key}",
         "Content-Type": "application/json"
     }
     payload = {
@@ -137,11 +147,14 @@ def generate_ai_response(prompt_input):
     }
 
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        # Khởi tạo Session riêng để đảm bảo HTTPS Adapter được mount chính xác
+        session = requests.Session()
+        response = session.post(url, headers=headers, json=payload, timeout=30)
+        
         if response.status_code == 200:
             return response.json()['choices'][0]['message']['content']
         else:
-            st.error(f"API Error ({response.status_code})")
+            st.error(f"API Error ({response.status_code}): {response.text}")
             return None
     except Exception as e:
         st.error(f"Connection Error: {str(e)}")
