@@ -14,6 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
+# CSS Tối ưu giao diện & SỬA TRIỆT ĐỂ LỖI CHỮ TÀNG HÌNH TRÊN DARK MODE
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -25,6 +26,16 @@ st.markdown("""
     .stApp {
         background-color: #f8fafc;
         color: #0f172a;
+    }
+
+    /* FIX LỖI TÀNG HÌNH: Ép màu chữ Radio Button & các lựa chọn luôn hiển thị rõ */
+    div[class*="stRadio"] label, 
+    div[class*="stRadio"] label p, 
+    div[class*="stRadio"] div, 
+    .stRadio p, .stRadio label, .stRadio span {
+        color: #0f172a !important;
+        font-weight: 500 !important;
+        font-size: 15px !important;
     }
     
     .apex-card {
@@ -46,7 +57,7 @@ st.markdown("""
     }
     
     .fast-track-box {
-        background-color: #f1f5f9;
+        background-color: #ffffff;
         border: 1.5px dashed #6366f1;
         border-radius: 16px;
         padding: 20px;
@@ -150,8 +161,7 @@ def extract_json_safely(raw_text):
 
 def sanitize_questions(raw_questions):
     """
-    Hàm phòng thủ dữ liệu: Chuẩn hóa mọi định dạng câu hỏi từ AI
-    về một cấu trúc duy nhất, bảo vệ app khỏi lỗi KeyError hoàn toàn.
+    Chuẩn hóa dữ liệu câu hỏi trả về từ AI để tránh bị thiếu đáp án hoặc sai định dạng
     """
     clean_list = []
     if not isinstance(raw_questions, list):
@@ -164,7 +174,6 @@ def sanitize_questions(raw_questions):
         q_id = str(q.get('id', idx))
         q_text = str(q.get('question', q.get('title', f'Question {idx}')))
         
-        # Tìm danh sách lựa chọn từ các key phổ biến
         opts = q.get('options', q.get('choices', q.get('answers', [])))
         if not isinstance(opts, list):
             opts = []
@@ -262,7 +271,7 @@ def speech_to_text_component(key_id):
     st.components.v1.html(html_code, height=180)
 
 # ==========================================
-# 4. THANH BÊN & GỌI GROQ API
+# 4. THANH BÊN & GỌI GROQ API (GIỮ NGUYÊN GROQ TỐC ĐỘ CAO)
 # ==========================================
 with st.sidebar:
     st.markdown("### 🎓 **Apex English**")
@@ -286,49 +295,50 @@ with st.sidebar:
     st.markdown(f"**Executive:** {user_info.get('user_name', 'User')}")
     st.markdown(f"**Active Level:** `{user_info.get('overall_level', 'B1 Intermediate')}`")
 
-SYSTEM_PROMPT = """You are a C-suite Executive English Coach. 
-Always provide high-level, precise, structured feedback. 
-Outputs MUST strictly be valid JSON when requested."""
+SYSTEM_PROMPT = "You are a C-suite Executive English Coach. Always provide high-level, precise, structured feedback. Outputs MUST strictly be valid JSON when requested."
 
 def generate_ai_response(prompt_input):
     if not api_key:
-        st.error("Groq API Key missing!")
+        st.error("Groq API Key is missing!")
         return None
 
     clean_key = re.sub(r'[^\x00-\x7F]+', '', str(api_key)).strip()
+    
     url = "https://api.groq.com/openai/v1/chat/completions"
-
     headers = {
         "Authorization": f"Bearer {clean_key}",
         "Content-Type": "application/json"
     }
+    
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": str(prompt_input)}
+            {"role": "user", "content": prompt_input}
         ],
-        "temperature": 0.2
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"}
     }
 
     try:
         session = requests.Session()
-        response = session.post(url, headers=headers, json=payload, timeout=40)
+        response = session.post(url, headers=headers, json=payload, timeout=30)
         if response.status_code == 200:
-            return response.json()['choices'][0]['message']['content']
+            res_json = response.json()
+            return res_json['choices'][0]['message']['content']
         else:
-            st.error(f"API Error ({response.status_code}): {response.text}")
+            st.error(f"Groq API Error ({response.status_code}): {response.text}")
             return None
     except Exception as e:
         st.error(f"Connection Error: {str(e)}")
         return None
 
 # ==========================================
-# 5. HÀM RENDER TRẮC NGHIỆM CHỐNG LỖI HOÀN HẢO
+# 5. HÀM RENDER TRẮC NGHIỆM TỐI ƯU GIAO DIỆN
 # ==========================================
 def render_mcq(tab_key, prompt_text, btn_label):
     if st.button(btn_label, key=f"btn_{tab_key}", use_container_width=True):
-        with st.spinner("Generating assessment questions..."):
+        with st.spinner("AI is generating high-quality assessment questions..."):
             raw = generate_ai_response(prompt_text)
             clean = extract_json_safely(raw)
             if clean:
@@ -339,11 +349,10 @@ def render_mcq(tab_key, prompt_text, btn_label):
 
                     if isinstance(parsed, dict):
                         passage_text = parsed.get("passage", "")
-                        raw_q_list = parsed.get("questions", [])
+                        raw_q_list = parsed.get("questions", parsed.get("data", []))
                     elif isinstance(parsed, list):
                         raw_q_list = parsed
 
-                    # Chuẩn hóa qua bộ lọc bảo vệ
                     clean_q_list = sanitize_questions(raw_q_list)
 
                     st.session_state[f"{tab_key}_passage"] = passage_text
@@ -354,7 +363,6 @@ def render_mcq(tab_key, prompt_text, btn_label):
                 except Exception as e:
                     st.error(f"Unable to parse test structure: {e}")
 
-    # Hiển thị bài test nếu đã có dữ liệu trong Session State
     if f"{tab_key}_questions" in st.session_state and st.session_state[f"{tab_key}_questions"]:
         questions = st.session_state[f"{tab_key}_questions"]
         passage = st.session_state.get(f"{tab_key}_passage", "")
@@ -373,7 +381,7 @@ def render_mcq(tab_key, prompt_text, btn_label):
                 
                 if q['options']:
                     user_ans[q['id']] = st.radio(
-                        "Select option:",
+                        "Select your answer:",
                         q['options'],
                         key=f"radio_{tab_key}_{ts}_{idx}_{q['id']}",
                         index=None
@@ -387,7 +395,6 @@ def render_mcq(tab_key, prompt_text, btn_label):
                 st.session_state[f"{tab_key}_sub"] = True
                 st.session_state[f"{tab_key}_ans"] = user_ans
 
-        # Hiển thị điểm và phản hồi sau khi Submit
         if st.session_state.get(f"{tab_key}_sub", False):
             score = 0
             u_ans = st.session_state.get(f"{tab_key}_ans", {})
@@ -397,7 +404,6 @@ def render_mcq(tab_key, prompt_text, btn_label):
                 selected = u_ans.get(q['id'])
                 correct = q['answer']
                 
-                # So sánh chính xác chuỗi đã loại bỏ khoảng trắng dư thừa
                 is_correct = False
                 if selected and correct:
                     if str(selected).strip().lower() == str(correct).strip().lower():
@@ -415,6 +421,12 @@ def render_mcq(tab_key, prompt_text, btn_label):
                 st.write("")
 
             st.success(f"🏆 Final Score: {score}/{len(questions)} ({(score/len(questions))*100:.0f}%)")
+            
+            safe_save("quiz_results", {
+                "category": tab_key,
+                "score": score,
+                "total": len(questions)
+            })
 
 # ==========================================
 # 6. GIAO DIỆN CHÍNH
@@ -425,7 +437,7 @@ else:
     if app_mode == "1. Comprehensive Diagnostic Assessment":
         st.markdown("""
         <div class="apex-header">
-            <h1 style='margin:0; font-size: 28px;'>Apex English Diagnostic</h1>
+            <h1 style='margin:0; font-size: 28px;'>Apex English Diagnostic Assessment</h1>
             <p style='margin:5px 0 0 0; opacity:0.9;'>Comprehensive 6-Skill Evaluation (CEFR A1 to C2 Diagnostic)</p>
         </div>
         """, unsafe_allow_html=True)
@@ -455,10 +467,10 @@ else:
         ])
 
         with t1:
-            render_mcq("v_diag", "Generate EXACTLY 15 Business English Vocabulary questions in JSON format. Return an array of objects, each containing: 'id', 'question', 'options' (array of 4 strings), 'answer' (exact string matching one option), and 'explanation'.", "Start 15-Question Vocabulary Assessment")
+            render_mcq("v_diag", '{"questions": [{"id":1, "question":"What does synergy mean in business?", "options":["A. Combined action producing greater effect","B. Individual effort","C. Financial audit","D. Legal clause"], "answer":"A. Combined action producing greater effect", "explanation":"Synergy refers to combined effort producing a greater total effect than individual efforts."}]}', "Start 15-Question Vocabulary Assessment")
         
         with t2:
-            render_mcq("g_diag", "Generate EXACTLY 15 Business English Grammar questions in JSON format. Return an array of objects, each containing: 'id', 'question', 'options' (array of 4 strings), 'answer' (exact string matching one option), and 'explanation'.", "Start 15-Question Grammar Assessment")
+            render_mcq("g_diag", '{"questions": [{"id":1, "question":"Select the correct executive sentence:", "options":["A. Neither of the managers were present","B. Neither of the managers was present","C. Neither of managers is present","D. Neither manager were present"], "answer":"B. Neither of the managers was present", "explanation":"\'Neither\' is singular and takes a singular verb (\'was\')."}]}', "Start 15-Question Grammar Assessment")
 
         with t3:
             reading_prompt = """Generate a long Business Reading passage (AT LEAST 20 SENTENCES) about Corporate Restructuring, followed by EXACTLY 15 comprehension questions in JSON format:
@@ -486,9 +498,8 @@ else:
                 if words < 80:
                     st.error(f"Your response is too short ({words} words). Please write at least 100 words.")
                 else:
-                    with st.spinner("AI Executive Coach evaluating writing..."):
-                        w_eval_prompt = f"""Evaluate this executive writing response (Prompt: Supply chain delay email). 
-                        Response: '{user_w}'
+                    with st.spinner("Executive Coach evaluating writing..."):
+                        w_eval_prompt = f"""Evaluate this executive writing response. Prompt: Supply chain delay email. Response: '{user_w}'.
                         Return JSON format:
                         {{
                           "score": 85,
@@ -511,7 +522,7 @@ else:
                                 st.markdown(f"- 💡 {vo}")
 
                             st.markdown('<div class="model-answer-card">', unsafe_allow_html=True)
-                            st.markdown("#### 🌟 C-Suite Model Answer (Bài mẫu chuẩn Executive):")
+                            st.markdown("#### 🌟 C-Suite Model Answer:")
                             st.write(res_w.get("model_answer"))
                             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -540,7 +551,7 @@ else:
         st.markdown(f"""
         <div class="apex-header">
             <h1 style='margin:0; font-size: 26px;'>30-Day Executive Curriculum</h1>
-            <p style='margin:5px 0 0 0; opacity:0.9;'>Custom Tailored for Trình độ: <b>{current_lvl}</b></p>
+            <p style='margin:5px 0 0 0; opacity:0.9;'>Custom Tailored for Level: <b>{current_lvl}</b></p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -555,11 +566,12 @@ else:
         with d1:
             st.markdown("### 📚 Daily 10 Executive Vocabulary Words")
             if st.button("Load Day's 10 Vocabulary Words", use_container_width=True):
-                v_prompt = f"Generate 10 Business English words for Day {selected_day} at level {current_lvl} in JSON array format: [{'word':'...', 'english_def':'...', 'vietnamese_def':'...', 'synonyms':'...', 'example_sentence':'...'}]"
+                v_prompt = f"Generate 10 Business English words for Day {selected_day} at level {current_lvl} in JSON array format inside a json object: {{\"words\": [{{\"word\":\"...\", \"english_def\":\"...\", \"vietnamese_def\":\"...\", \"synonyms\":\"...\", \"example_sentence\":\"...\"}}]}}"
                 raw_v = generate_ai_response(v_prompt)
                 clean_v = extract_json_safely(raw_v)
                 if clean_v:
-                    words_data = json.loads(clean_v)
+                    parsed_v = json.loads(clean_v)
+                    words_data = parsed_v.get("words", parsed_v) if isinstance(parsed_v, dict) else parsed_v
                     for w in words_data:
                         st.markdown(f"""
                         <div class="apex-card">
@@ -572,8 +584,7 @@ else:
 
         with d2:
             st.markdown("### 📐 Topic-based Grammar & Practice Questions")
-            if st.button("Load Grammar Lesson", use_container_width=True):
-                st.info("Grammar Topic: Advanced Inversion in Formal Business Reports")
+            st.info("Grammar Topic: Advanced Inversion in Formal Business Reports")
 
         with d3:
             st.markdown("### 🎧 Daily Listening (10 Questions)")
