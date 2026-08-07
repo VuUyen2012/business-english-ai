@@ -115,7 +115,7 @@ with st.sidebar:
     st.info(f"🎯 **Level CEFR Hiện Tại:**\n\n### `{current_lvl}`")
 
 # ==========================================
-# 5. CẤU HÌNH AI & TỰ ĐỘNG DÒ MODEL PHÙ HỢP
+# 5. CẤU HÌNH AI & TỐI ƯU HÓA QUOTA CHUẨN
 # ==========================================
 SYSTEM_PROMPT = """
 Bạn là Giảng viên Chuyên gia Business English Cao cấp.
@@ -125,72 +125,39 @@ Quy tắc giảng dạy:
 3. Khi học viên làm bài Viết (>=100 từ): Hãy sửa lỗi theo chuẩn: [Câu gốc] -> [Câu sửa] -> [Lý do] và BẮT BUỘC cung cấp 1 bài mẫu (Model Answer) chuyên nghiệp đúng trình độ.
 """
 
+@st.cache_resource
+def get_gemini_model(key):
+    genai.configure(api_key=key)
+    return genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_PROMPT)
+
 def generate_ai_response(contents):
     if not api_key:
         st.error("Chưa nhập Gemini API Key!")
         return None
 
-    genai.configure(api_key=api_key)
-
-    # 1. Tìm danh sách các Model mà API Key này ĐƯỢC PHÉP dùng
-    valid_models = []
     try:
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                # Loại bỏ prefix 'models/' nếu có
-                model_id = m.name.replace("models/", "")
-                valid_models.append(model_id)
-    except Exception as e:
-        st.error(f"Lỗi kiểm tra API Key: {str(e)}")
-        return None
-
-    if not valid_models:
-        st.error("API Key của bạn không hỗ trợ model AI nào. Vui lòng kiểm tra lại API Key trên Google AI Studio!")
-        return None
-
-    # 2. Ưu tiên chọn các model Flash / Pro đang hoạt động
-    preferred_order = [
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-pro",
-        "gemini-pro"
-    ]
-    
-    selected_model_name = None
-    for pref in preferred_order:
-        if pref in valid_models:
-            selected_model_name = pref
-            break
-            
-    # Nếu không trùng model trong danh sách ưu tiên, lấy model hỗ trợ tạo nội dung đầu tiên
-    if not selected_model_name:
-        selected_model_name = valid_models[0]
-
-    # 3. Tiến hành gọi API
-    try:
-        model = genai.GenerativeModel(selected_model_name, system_instruction=SYSTEM_PROMPT)
+        model = get_gemini_model(api_key)
         
-        # Xử lý Retry nếu gặp phải lỗi Quota tạm thời (429)
-        for retry in range(3):
+        # Thử tối đa 2 lần với khoảng nghỉ nếu dính Quota
+        for retry in range(2):
             try:
                 res = model.generate_content(contents)
                 if res and res.text:
                     return res.text
-            except Exception as call_err:
-                err_text = str(call_err)
+            except Exception as e:
+                err_text = str(e)
                 if "429" in err_text or "ResourceExhausted" in err_text:
-                    if retry < 2:
-                        time.sleep(3 * (retry + 1))
+                    if retry == 0:
+                        time.sleep(4)  # Nghỉ 4 giây rồi thử lại tự động
                         continue
                     else:
-                        st.error("⏳ Hạn ngạch API (Quota) tạm thời bị quá tải. Vui lòng đợi 30 giây rồi thử lại.")
+                        st.error("⏳ API Key Free Tier bị giới hạn lượt gọi (15 requests/phút). Vui lòng đợi khoảng 15-20 giây rồi bấm lại!")
                         return None
                 else:
-                    st.error(f"Lỗi gọi Model ({selected_model_name}): {err_text}")
+                    st.error(f"Lỗi API: {err_text}")
                     return None
     except Exception as exec_err:
-        st.error(f"Lỗi khởi tạo Model ({selected_model_name}): {str(exec_err)}")
+        st.error(f"Lỗi kết nối Gemini: {str(exec_err)}")
         return None
 
 if not api_key:
