@@ -1,6 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 from supabase import create_client, Client
+import time
 
 # ==========================================
 # 1. CẤU HÌNH TRANG WEB
@@ -116,7 +117,7 @@ with st.sidebar:
     st.info(f"🎯 **Level CEFR Hiện Tại:**\n\n### `{current_lvl}`")
 
 # ==========================================
-# 5. CẤU HÌNH SYSTEM PROMPT & HÀM GỌI GEMINI AN TOÀN
+# 5. CẤU HÌNH SYSTEM PROMPT & HÀM GỌI AI CHỐNG LỖI QUOTA
 # ==========================================
 SYSTEM_PROMPT = """
 Bạn là Giảng viên Chuyên gia Business English Cao cấp.
@@ -127,29 +128,26 @@ Quy tắc giảng dạy:
 """
 
 def generate_ai_response(contents):
-    """Hàm gọi Gemini an toàn, tự động thử danh sách Model dự phòng nếu gặp lỗi 404 NotFound"""
-    candidate_models = [
-        "gemini-1.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-pro",
-        "gemini-1.0-pro"
-    ]
-    last_error = None
+    """Gửi yêu cầu tới Gemini với cơ chế retry và bắt lỗi 429 (ResourceExhausted) an toàn"""
+    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_PROMPT)
     
-    for m_name in candidate_models:
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            model = genai.GenerativeModel(m_name, system_instruction=SYSTEM_PROMPT)
             response = model.generate_content(contents)
             return response.text
         except Exception as e:
-            last_error = e
-            # Nếu dính lỗi NotFound / 404 thì bỏ qua để thử model kế tiếp
-            if "NotFound" in str(type(e).__name__) or "404" in str(e) or "NotFound" in str(e):
-                continue
+            err_str = str(e)
+            if "ResourceExhausted" in err_str or "429" in err_str:
+                if attempt < max_retries - 1:
+                    time.sleep(2)  # Đợi 2 giây rồi thử lại
+                    continue
+                else:
+                    st.error("⏳ API Key của bạn đang bị quá tải lượt gọi (Quota Exceeded / 429). Vui lòng đợi khoảng 30 - 60 giây rồi thử lại, hoặc kiểm tra hạn ngạch trên Google AI Studio.")
+                    return None
             else:
-                raise e
-    raise last_error
+                st.error(f"❌ Lỗi khi kết nối AI: {err_str}")
+                return None
 
 if not api_key:
     st.warning("⚠️ Vui lòng cấu hình Gemini API Key để sử dụng app!")
@@ -180,32 +178,37 @@ else:
             if st.button("Tạo đề Từ vựng", key="btn_p_vocab"):
                 with st.spinner("AI đang tạo đề..."):
                     res_text = generate_ai_response("Tạo 15 câu hỏi trắc nghiệm từ vựng Business English (phân bổ từ A2 đến C1) kèm đáp án ẩn bên dưới.")
-                    st.markdown(res_text)
+                    if res_text:
+                        st.markdown(res_text)
 
         with t2:
             st.subheader("Kiểm tra Ngữ pháp (15 câu hỏi)")
             if st.button("Tạo đề Ngữ pháp", key="btn_p_gram"):
                 with st.spinner("AI đang tạo đề..."):
                     res_text = generate_ai_response("Tạo 15 câu hỏi trắc nghiệm ngữ pháp Business English kèm đáp án ẩn bên dưới.")
-                    st.markdown(res_text)
+                    if res_text:
+                        st.markdown(res_text)
 
         with t3:
             st.subheader("Kiểm tra Đọc hiểu (Reading)")
             if st.button("Tạo bài Đọc hiểu", key="btn_p_read"):
                 with st.spinner("AI đang khởi tạo đoạn văn 20 câu..."):
                     res_text = generate_ai_response("Viết 1 đoạn văn chủ đề Business Strategy dài ÍT NHẤT 20 CÂU. Phía dưới đưa ra 15 câu hỏi trắc nghiệm đọc hiểu.")
-                    st.markdown(res_text)
+                    if res_text:
+                        st.markdown(res_text)
 
         with t4:
             st.subheader("Kiểm tra Nghe hiểu (Listening)")
             if st.button("Tạo bài Nghe & Audio", key="btn_p_listen"):
                 with st.spinner("AI đang tạo kịch bản nghe..."):
                     script_text = generate_ai_response("Viết 1 đoạn hội thoại đàm phán hợp đồng tiếng Anh dài 15-20 câu.")
-                    st.markdown(script_text)
-                    play_audio_html(script_text)
-                    st.markdown("---")
-                    qs_text = generate_ai_response(f"Dựa vào bài nghe sau, tạo 10 câu hỏi trắc nghiệm:\n{script_text}")
-                    st.markdown(qs_text)
+                    if script_text:
+                        st.markdown(script_text)
+                        play_audio_html(script_text)
+                        st.markdown("---")
+                        qs_text = generate_ai_response(f"Dựa vào bài nghe sau, tạo 10 câu hỏi trắc nghiệm:\n{script_text}")
+                        if qs_text:
+                            st.markdown(qs_text)
 
         with t5:
             st.subheader("Kiểm tra Viết (Writing & Chấm điểm Level CEFR)")
@@ -239,21 +242,22 @@ else:
                         Ví dụ: [LEVEL: B2 Upper-Intermediate]
                         """
                         res_text = generate_ai_response(prompt_eval)
-                        st.markdown(res_text)
-                        
-                        detected_level = "B1 Intermediate"
-                        if "[LEVEL:" in res_text:
-                            try:
-                                detected_level = res_text.split("[LEVEL:")[1].split("]")[0].strip()
-                            except:
-                                detected_level = "B1 Intermediate"
+                        if res_text:
+                            st.markdown(res_text)
+                            
+                            detected_level = "B1 Intermediate"
+                            if "[LEVEL:" in res_text:
+                                try:
+                                    detected_level = res_text.split("[LEVEL:")[1].split("]")[0].strip()
+                                except:
+                                    detected_level = "B1 Intermediate"
 
-                        safe_save("placement_results", {
-                            "writing_feedback": res_text,
-                            "overall_level": detected_level
-                        })
-                        st.balloons()
-                        st.success(f"🎉 ĐÃ CẬP NHẬT TRÌNH ĐỘ THÀNH CÔNG: **{detected_level}**! Hãy chuyển sang Chế độ 2 để bắt đầu học.")
+                            safe_save("placement_results", {
+                                "writing_feedback": res_text,
+                                "overall_level": detected_level
+                            })
+                            st.balloons()
+                            st.success(f"🎉 ĐÃ CẬP NHẬT TRÌNH ĐỘ THÀNH CÔNG: **{detected_level}**! Hãy chuyển sang Chế độ 2 để bắt đầu học.")
 
         with t6:
             st.subheader("Kiểm tra Nói (Speaking - 3 Topics)")
@@ -265,7 +269,8 @@ else:
                         {"mime_type": "audio/wav", "data": audio_bytes},
                         "Chuyển giọng nói thành text, đánh giá ngữ pháp, phát âm và xếp loại trình độ CEFR."
                     ])
-                    st.markdown(res_text)
+                    if res_text:
+                        st.markdown(res_text)
 
     # ==========================================
     # PHẦN 2: GIÁO TRÌNH 30 NGÀY (CÁ NHÂN HÓA THEO LEVEL)
@@ -290,7 +295,8 @@ else:
                 with st.spinner("Đang tải danh sách từ vựng cá nhân hóa..."):
                     prompt = f"Soạn 10 từ vựng Business English chuẩn trình độ {user_level} cho Day {day_selected}. Định dạng bảng: Từ tiếng Anh | Giải nghĩa EN | Giải nghĩa VI | Từ đồng nghĩa | Ví dụ câu thực tế."
                     res_text = generate_ai_response(prompt)
-                    st.markdown(res_text)
+                    if res_text:
+                        st.markdown(res_text)
 
         with d_t2:
             st.subheader(f"Ngữ pháp Thương Mại (Level {user_level})")
@@ -298,7 +304,8 @@ else:
                 with st.spinner("Đang tải lý thuyết..."):
                     prompt = f"Dạy 1 chủ đề Ngữ pháp Business English thiết kế riêng cho trình độ {user_level} (Day {day_selected}). Sau đó tạo 12 câu hỏi trắc nghiệm đánh giá kèm đáp án."
                     res_text = generate_ai_response(prompt)
-                    st.markdown(res_text)
+                    if res_text:
+                        st.markdown(res_text)
 
         with d_t3:
             st.subheader(f"Bài tập Nghe hiểu (Level {user_level})")
@@ -306,8 +313,9 @@ else:
                 with st.spinner("Đang tạo kịch bản nghe..."):
                     prompt = f"Soạn 1 đoạn hội thoại công sở tiếng Anh chuẩn trình độ {user_level} cho Day {day_selected} (dài 15 câu)."
                     script_text = generate_ai_response(prompt)
-                    st.markdown(script_text)
-                    play_audio_html(script_text)
+                    if script_text:
+                        st.markdown(script_text)
+                        play_audio_html(script_text)
 
         with d_t4:
             st.subheader(f"Bài Đọc hiểu (Level {user_level} - Đoạn văn >= 20 câu)")
@@ -315,7 +323,8 @@ else:
                 with st.spinner("Đang khởi tạo đoạn văn..."):
                     prompt = f"Viết 1 bài báo/văn bản Business tiếng Anh dành cho trình độ {user_level} dài ÍT NHẤT 20 CÂU cho Day {day_selected}. Phía dưới tạo 15 câu hỏi trắc nghiệm."
                     res_text = generate_ai_response(prompt)
-                    st.markdown(res_text)
+                    if res_text:
+                        st.markdown(res_text)
 
         with d_t5:
             st.subheader(f"Bài tập Viết Business (>= 100 từ - Tiêu chuẩn {user_level})")
@@ -336,22 +345,23 @@ else:
                         3. Cung cấp 1 bài viết mẫu (Model Answer) đạt chuẩn mốc trình độ TIẾP THEO cao hơn 1 bậc.
                         """
                         res_text = generate_ai_response(prompt)
-                        st.markdown(res_text)
-                        
-                        safe_save("lesson_progress", {
-                            "day_number": day_selected,
-                            "skill": f"Writing ({user_level})",
-                            "user_submission": daily_essay,
-                            "ai_feedback": res_text
-                        })
-                        safe_save("error_logs", {
-                            "skill": "Writing",
-                            "lesson": f"Day {day_selected} ({user_level})",
-                            "original": daily_essay[:100] + "...",
-                            "corrected": "Xem chi tiết phản hồi AI",
-                            "reason": "Phân tích ngữ pháp & Business Tone"
-                        })
-                        st.success(f"✅ Đã lưu tiến độ Day {day_selected} vào hệ thống!")
+                        if res_text:
+                            st.markdown(res_text)
+                            
+                            safe_save("lesson_progress", {
+                                "day_number": day_selected,
+                                "skill": f"Writing ({user_level})",
+                                "user_submission": daily_essay,
+                                "ai_feedback": res_text
+                            })
+                            safe_save("error_logs", {
+                                "skill": "Writing",
+                                "lesson": f"Day {day_selected} ({user_level})",
+                                "original": daily_essay[:100] + "...",
+                                "corrected": "Xem chi tiết phản hồi AI",
+                                "reason": "Phân tích ngữ pháp & Business Tone"
+                            })
+                            st.success(f"✅ Đã lưu tiến độ Day {day_selected} vào hệ thống!")
 
         with d_t6:
             st.subheader(f"Luyện Nói Tương Tác (Target Level {user_level})")
@@ -363,7 +373,8 @@ else:
                         {"mime_type": "audio/wav", "data": audio_bytes},
                         f"Chuyển giọng nói thành text, phân tích phát âm và ngữ pháp so với tiêu chuẩn {user_level}."
                     ])
-                    st.markdown(res_text)
+                    if res_text:
+                        st.markdown(res_text)
 
     # ==========================================
     # PHẦN 3: REVIEW SỔ TAY LỖI SAI & LỊCH SỬ HỌC
@@ -400,4 +411,5 @@ else:
                 if st.button("Tạo bài tập Ôn lại các lỗi sai"):
                     with st.spinner("AI đang tạo bài tập ôn lại..."):
                         res_text = generate_ai_response(f"Tạo 5 câu hỏi trắc nghiệm ôn tập dựa trên danh sách lỗi sau:\n{errors}")
-                        st.markdown(res_text)
+                        if res_text:
+                            st.markdown(res_text)
