@@ -116,7 +116,7 @@ with st.sidebar:
     st.info(f"🎯 **Level CEFR Hiện Tại:**\n\n### `{current_lvl}`")
 
 # ==========================================
-# 5. CẤU HÌNH SYSTEM PROMPT & GEMINI
+# 5. CẤU HÌNH SYSTEM PROMPT & HÀM GỌI GEMINI AN TOÀN
 # ==========================================
 SYSTEM_PROMPT = """
 Bạn là Giảng viên Chuyên gia Business English Cao cấp.
@@ -126,11 +126,35 @@ Quy tắc giảng dạy:
 3. Khi học viên làm bài Viết (>=100 từ): Hãy sửa lỗi theo chuẩn: [Câu gốc] -> [Câu sửa] -> [Lý do] và BẮT BUỘC cung cấp 1 bài mẫu (Model Answer) chuyên nghiệp đúng trình độ.
 """
 
+def generate_ai_response(contents):
+    """Hàm gọi Gemini an toàn, tự động thử danh sách Model dự phòng nếu gặp lỗi 404 NotFound"""
+    candidate_models = [
+        "gemini-1.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-pro",
+        "gemini-1.0-pro"
+    ]
+    last_error = None
+    
+    for m_name in candidate_models:
+        try:
+            model = genai.GenerativeModel(m_name, system_instruction=SYSTEM_PROMPT)
+            response = model.generate_content(contents)
+            return response.text
+        except Exception as e:
+            last_error = e
+            # Nếu dính lỗi NotFound / 404 thì bỏ qua để thử model kế tiếp
+            if "NotFound" in str(type(e).__name__) or "404" in str(e) or "NotFound" in str(e):
+                continue
+            else:
+                raise e
+    raise last_error
+
 if not api_key:
     st.warning("⚠️ Vui lòng cấu hình Gemini API Key để sử dụng app!")
 else:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_PROMPT)
 
     # ==========================================
     # PHẦN 1: ĐÁNH GIÁ ĐẦU VÀO (PLACEMENT TEST)
@@ -138,7 +162,6 @@ else:
     if app_mode == "1. Đánh giá đầu vào (Placement Test)":
         st.title("📋 Bài Kiểm Tra Đánh Giá Đầu Vào Comprehensive")
         
-        # BẢNG HIỂN THỊ KẾT QUẢ LEVEL HIỆN TẠI
         current_lvl = get_user_current_level()
         st.markdown(f"""
         <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #1E88E5; margin-bottom: 20px;">
@@ -156,33 +179,33 @@ else:
             st.subheader("Kiểm tra Từ vựng (15 câu hỏi)")
             if st.button("Tạo đề Từ vựng", key="btn_p_vocab"):
                 with st.spinner("AI đang tạo đề..."):
-                    res = model.generate_content("Tạo 15 câu hỏi trắc nghiệm từ vựng Business English (phân bổ từ A2 đến C1) kèm đáp án ẩn bên dưới.")
-                    st.markdown(res.text)
+                    res_text = generate_ai_response("Tạo 15 câu hỏi trắc nghiệm từ vựng Business English (phân bổ từ A2 đến C1) kèm đáp án ẩn bên dưới.")
+                    st.markdown(res_text)
 
         with t2:
             st.subheader("Kiểm tra Ngữ pháp (15 câu hỏi)")
             if st.button("Tạo đề Ngữ pháp", key="btn_p_gram"):
                 with st.spinner("AI đang tạo đề..."):
-                    res = model.generate_content("Tạo 15 câu hỏi trắc nghiệm ngữ pháp Business English kèm đáp án ẩn bên dưới.")
-                    st.markdown(res.text)
+                    res_text = generate_ai_response("Tạo 15 câu hỏi trắc nghiệm ngữ pháp Business English kèm đáp án ẩn bên dưới.")
+                    st.markdown(res_text)
 
         with t3:
             st.subheader("Kiểm tra Đọc hiểu (Reading)")
             if st.button("Tạo bài Đọc hiểu", key="btn_p_read"):
                 with st.spinner("AI đang khởi tạo đoạn văn 20 câu..."):
-                    res = model.generate_content("Viết 1 đoạn văn chủ đề Business Strategy dài ÍT NHẤT 20 CÂU. Phía dưới đưa ra 15 câu hỏi trắc nghiệm đọc hiểu.")
-                    st.markdown(res.text)
+                    res_text = generate_ai_response("Viết 1 đoạn văn chủ đề Business Strategy dài ÍT NHẤT 20 CÂU. Phía dưới đưa ra 15 câu hỏi trắc nghiệm đọc hiểu.")
+                    st.markdown(res_text)
 
         with t4:
             st.subheader("Kiểm tra Nghe hiểu (Listening)")
             if st.button("Tạo bài Nghe & Audio", key="btn_p_listen"):
                 with st.spinner("AI đang tạo kịch bản nghe..."):
-                    script_res = model.generate_content("Viết 1 đoạn hội thoại đàm phán hợp đồng tiếng Anh dài 15-20 câu.")
-                    st.markdown(script_res.text)
-                    play_audio_html(script_res.text)
+                    script_text = generate_ai_response("Viết 1 đoạn hội thoại đàm phán hợp đồng tiếng Anh dài 15-20 câu.")
+                    st.markdown(script_text)
+                    play_audio_html(script_text)
                     st.markdown("---")
-                    qs_res = model.generate_content(f"Dựa vào bài nghe sau, tạo 10 câu hỏi trắc nghiệm:\n{script_res.text}")
-                    st.markdown(qs_res.text)
+                    qs_text = generate_ai_response(f"Dựa vào bài nghe sau, tạo 10 câu hỏi trắc nghiệm:\n{script_text}")
+                    st.markdown(qs_text)
 
         with t5:
             st.subheader("Kiểm tra Viết (Writing & Chấm điểm Level CEFR)")
@@ -215,20 +238,18 @@ else:
                         Dòng ĐẦU TIÊN của phản hồi phải ghi chính xác: [LEVEL: <Tên_Mức_CEFR>]
                         Ví dụ: [LEVEL: B2 Upper-Intermediate]
                         """
-                        res = model.generate_content(prompt_eval)
-                        st.markdown(res.text)
+                        res_text = generate_ai_response(prompt_eval)
+                        st.markdown(res_text)
                         
-                        # Trích xuất level để lưu vào Database
                         detected_level = "B1 Intermediate"
-                        if "[LEVEL:" in res.text:
+                        if "[LEVEL:" in res_text:
                             try:
-                                detected_level = res.text.split("[LEVEL:")[1].split("]")[0].strip()
+                                detected_level = res_text.split("[LEVEL:")[1].split("]")[0].strip()
                             except:
                                 detected_level = "B1 Intermediate"
 
-                        # Lưu kết quả
                         safe_save("placement_results", {
-                            "writing_feedback": res.text,
+                            "writing_feedback": res_text,
                             "overall_level": detected_level
                         })
                         st.balloons()
@@ -240,11 +261,11 @@ else:
             if spoken_audio and st.button("Chấm điểm bài Nói", key="btn_p_score_speak"):
                 with st.spinner("AI đang phân tích bài nói..."):
                     audio_bytes = spoken_audio.read()
-                    res = model.generate_content([
+                    res_text = generate_ai_response([
                         {"mime_type": "audio/wav", "data": audio_bytes},
                         "Chuyển giọng nói thành text, đánh giá ngữ pháp, phát âm và xếp loại trình độ CEFR."
                     ])
-                    st.markdown(res.text)
+                    st.markdown(res_text)
 
     # ==========================================
     # PHẦN 2: GIÁO TRÌNH 30 NGÀY (CÁ NHÂN HÓA THEO LEVEL)
@@ -268,23 +289,23 @@ else:
             if st.button("Tải 10 từ vựng", key=f"btn_d_vocab_{day_selected}"):
                 with st.spinner("Đang tải danh sách từ vựng cá nhân hóa..."):
                     prompt = f"Soạn 10 từ vựng Business English chuẩn trình độ {user_level} cho Day {day_selected}. Định dạng bảng: Từ tiếng Anh | Giải nghĩa EN | Giải nghĩa VI | Từ đồng nghĩa | Ví dụ câu thực tế."
-                    res = model.generate_content(prompt)
-                    st.markdown(res.text)
+                    res_text = generate_ai_response(prompt)
+                    st.markdown(res_text)
 
         with d_t2:
             st.subheader(f"Ngữ pháp Thương Mại (Level {user_level})")
             if st.button("Tải bài học Ngữ pháp", key=f"btn_d_gram_{day_selected}"):
                 with st.spinner("Đang tải lý thuyết..."):
                     prompt = f"Dạy 1 chủ đề Ngữ pháp Business English thiết kế riêng cho trình độ {user_level} (Day {day_selected}). Sau đó tạo 12 câu hỏi trắc nghiệm đánh giá kèm đáp án."
-                    res = model.generate_content(prompt)
-                    st.markdown(res.text)
+                    res_text = generate_ai_response(prompt)
+                    st.markdown(res_text)
 
         with d_t3:
             st.subheader(f"Bài tập Nghe hiểu (Level {user_level})")
             if st.button("Tạo bài Nghe Day này", key=f"btn_d_listen_{day_selected}"):
                 with st.spinner("Đang tạo kịch bản nghe..."):
                     prompt = f"Soạn 1 đoạn hội thoại công sở tiếng Anh chuẩn trình độ {user_level} cho Day {day_selected} (dài 15 câu)."
-                    script_text = model.generate_content(prompt).text
+                    script_text = generate_ai_response(prompt)
                     st.markdown(script_text)
                     play_audio_html(script_text)
 
@@ -293,8 +314,8 @@ else:
             if st.button("Tải bài Đọc Day này", key=f"btn_d_read_{day_selected}"):
                 with st.spinner("Đang khởi tạo đoạn văn..."):
                     prompt = f"Viết 1 bài báo/văn bản Business tiếng Anh dành cho trình độ {user_level} dài ÍT NHẤT 20 CÂU cho Day {day_selected}. Phía dưới tạo 15 câu hỏi trắc nghiệm."
-                    res = model.generate_content(prompt)
-                    st.markdown(res.text)
+                    res_text = generate_ai_response(prompt)
+                    st.markdown(res_text)
 
         with d_t5:
             st.subheader(f"Bài tập Viết Business (>= 100 từ - Tiêu chuẩn {user_level})")
@@ -314,14 +335,14 @@ else:
                         2. Sửa từng lỗi sai chi tiết.
                         3. Cung cấp 1 bài viết mẫu (Model Answer) đạt chuẩn mốc trình độ TIẾP THEO cao hơn 1 bậc.
                         """
-                        res = model.generate_content(prompt)
-                        st.markdown(res.text)
+                        res_text = generate_ai_response(prompt)
+                        st.markdown(res_text)
                         
                         safe_save("lesson_progress", {
                             "day_number": day_selected,
                             "skill": f"Writing ({user_level})",
                             "user_submission": daily_essay,
-                            "ai_feedback": res.text
+                            "ai_feedback": res_text
                         })
                         safe_save("error_logs", {
                             "skill": "Writing",
@@ -338,11 +359,11 @@ else:
             if daily_audio and st.button("Phân tích bài Nói", key=f"btn_d_score_speak_{day_selected}"):
                 with st.spinner("AI đang phân tích..."):
                     audio_bytes = daily_audio.read()
-                    res = model.generate_content([
+                    res_text = generate_ai_response([
                         {"mime_type": "audio/wav", "data": audio_bytes},
                         f"Chuyển giọng nói thành text, phân tích phát âm và ngữ pháp so với tiêu chuẩn {user_level}."
                     ])
-                    st.markdown(res.text)
+                    st.markdown(res_text)
 
     # ==========================================
     # PHẦN 3: REVIEW SỔ TAY LỖI SAI & LỊCH SỬ HỌC
@@ -378,5 +399,5 @@ else:
                 st.divider()
                 if st.button("Tạo bài tập Ôn lại các lỗi sai"):
                     with st.spinner("AI đang tạo bài tập ôn lại..."):
-                        res = model.generate_content(f"Tạo 5 câu hỏi trắc nghiệm ôn tập dựa trên danh sách lỗi sau:\n{errors}")
-                        st.markdown(res.text)
+                        res_text = generate_ai_response(f"Tạo 5 câu hỏi trắc nghiệm ôn tập dựa trên danh sách lỗi sau:\n{errors}")
+                        st.markdown(res_text)
