@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. KHỞI TẠO VÀ BẢO VỆ KẾT NỐI SUPABASE
+# 2. KHỦNG VÀ BẢO VỆ KẾT NỐI SUPABASE
 # ==========================================
 supabase_url = st.secrets.get("SUPABASE_URL", "")
 supabase_key = st.secrets.get("SUPABASE_KEY", "")
@@ -91,8 +91,9 @@ def play_audio_html(text_to_speak):
 with st.sidebar:
     st.title("⚙️ Cấu Hình Hệ Thống")
     
-    default_gemini_key = st.secrets.get("GEMINI_API_KEY", "")
-    api_key = st.text_input("Google Gemini API Key:", value=default_gemini_key, type="password")
+    # Ưu tiên lấy Key từ Secrets
+    default_groq_key = st.secrets.get("GROQ_API_KEY", "")
+    api_key = st.text_input("Groq API Key:", value=default_groq_key, type="password")
     
     st.divider()
     st.title("🎯 Điều Hướng Chức Năng")
@@ -116,7 +117,7 @@ with st.sidebar:
     st.info(f"🎯 **Level CEFR Hiện Tại:**\n\n### `{current_lvl}`")
 
 # ==========================================
-# 5. CẤU HÌNH AI THUẦN REST HTTP (CHỐNG CRASH / 404 / 429)
+# 5. CẤU HÌNH AI QUA GROQ API (Llama-3.3-70b)
 # ==========================================
 SYSTEM_PROMPT = """
 Bạn là Giảng viên Chuyên gia Business English Cao cấp.
@@ -128,10 +129,9 @@ Quy tắc giảng dạy:
 
 def generate_ai_response(prompt_input):
     if not api_key:
-        st.error("Chưa nhập Gemini API Key!")
+        st.error("Chưa cấu hình Groq API Key! Vui lòng kiểm tra mục Secrets trên Streamlit Cloud.")
         return None
 
-    # Chuyển đổi dữ liệu sang text đơn giản
     if isinstance(prompt_input, str):
         prompt_text = prompt_input
     elif isinstance(prompt_input, list):
@@ -139,48 +139,46 @@ def generate_ai_response(prompt_input):
     else:
         prompt_text = str(prompt_input)
 
-    full_text = f"{SYSTEM_PROMPT}\n\nYêu cầu: {prompt_text}"
-
-    # Danh sách endpoint chạy thử lần lượt nếu bị 404
-    endpoints = [
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}",
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}",
-        f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
-    ]
-
-    headers = {'Content-Type': 'application/json'}
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
     payload = {
-        "contents": [{
-            "parts": [{"text": full_text}]
-        }]
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt_text}
+        ],
+        "temperature": 0.7
     }
 
-    for url in endpoints:
-        try:
-            res = requests.post(url, headers=headers, json=payload, timeout=30)
-            if res.status_code == 200:
-                data = res.json()
-                return data['candidates'][0]['content']['parts'][0]['text']
-            elif res.status_code == 429:
-                st.error("⏳ API Key Free bị vượt giới hạn lượt gọi (Quota). Vui lòng đợi 30 giây rồi bấm lại!")
-                return None
-            elif res.status_code == 404:
-                continue # Thử endpoint tiếp theo trong danh sách
-            else:
-                st.error(f"Lỗi API ({res.status_code}): {res.text}")
-                return None
-        except Exception as err:
-            st.error(f"Lỗi kết nối mạng: {str(err)}")
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            res_data = response.json()
+            return res_data['choices'][0]['message']['content']
+        elif response.status_code == 401:
+            st.error("❌ API Key Groq không hợp lệ. Vui lòng kiểm tra lại Key trong mục Secrets.")
+            return None
+        elif response.status_code == 429:
+            st.error("⏳ Hệ thống đang quá tải một chút. Vui lòng đợi 10 giây rồi thử lại!")
+            return None
+        else:
+            st.error(f"Lỗi API ({response.status_code}): {response.text}")
             return None
 
-    st.error("Không thể kết nối đến bất kỳ Model Gemini nào với API Key hiện tại. Vui lòng kiểm tra lại Key trên Google AI Studio.")
-    return None
+    except Exception as e:
+        st.error(f"Lỗi kết nối mạng: {str(e)}")
+        return None
 
 # ==========================================
 # 6. GIAO DIỆN CHÍNH
 # ==========================================
 if not api_key:
-    st.warning("⚠️ Vui lòng cấu hình Gemini API Key ở thanh bên (Sidebar) để bắt đầu!")
+    st.warning("⚠️ Vui lòng lưu Groq API Key vào Secrets để bắt đầu sử dụng app!")
 else:
     # PHẦN 1: PLACEMENT TEST
     if app_mode == "1. Đánh giá đầu vào (Placement Test)":
@@ -202,7 +200,7 @@ else:
         with t1:
             st.subheader("Kiểm tra Từ vựng (15 câu hỏi)")
             if st.button("Tạo đề Từ vựng", key="btn_p_vocab"):
-                with st.spinner("AI đang tạo đề..."):
+                with st.spinner("AI đang khởi tạo đề..."):
                     res_text = generate_ai_response("Tạo 15 câu hỏi trắc nghiệm từ vựng Business English (phân bổ từ A2 đến C1) kèm đáp án ẩn bên dưới.")
                     if res_text:
                         st.markdown(res_text)
@@ -210,7 +208,7 @@ else:
         with t2:
             st.subheader("Kiểm tra Ngữ pháp (15 câu hỏi)")
             if st.button("Tạo đề Ngữ pháp", key="btn_p_gram"):
-                with st.spinner("AI đang tạo đề..."):
+                with st.spinner("AI đang khởi tạo đề..."):
                     res_text = generate_ai_response("Tạo 15 câu hỏi trắc nghiệm ngữ pháp Business English kèm đáp án ẩn bên dưới.")
                     if res_text:
                         st.markdown(res_text)
