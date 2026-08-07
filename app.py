@@ -1,8 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
 from supabase import create_client, Client
-from gTTS import gTTS
-import io
 
 # ==========================================
 # 1. CẤU HÌNH TRANG WEB
@@ -27,9 +25,8 @@ if supabase_url and supabase_key:
     except Exception:
         supabase = None
 
-# --- HÀM TƯƠNG TÁC DATABASE AN TOÀN (KHÔNG LÀM MẤT DỮ LIỆU CŨ) ---
+# --- HÀM TƯƠNG TÁC DATABASE AN TOÀN ---
 def safe_save(table_name: str, data_dict: dict):
-    """Ghi thêm dữ liệu mới vào Supabase mà không đè hay ảnh hưởng dữ liệu cũ"""
     if not supabase:
         return False
     try:
@@ -39,7 +36,6 @@ def safe_save(table_name: str, data_dict: dict):
         return False
 
 def safe_fetch(table_name: str):
-    """Đọc toàn bộ dữ liệu lịch sử từ Supabase"""
     if not supabase:
         return []
     try:
@@ -49,17 +45,38 @@ def safe_fetch(table_name: str):
         return []
 
 # ==========================================
-# 3. HÀM CHUYỂN VĂN BẢN THÀNH GIỌNG NÓI (TTS)
+# 3. HÀM PHÁT ÂM TIẾNG ANH (BẰNG NATIVE BROWSER SPEECH)
 # ==========================================
-def text_to_speech_audio(text):
-    try:
-        tts = gTTS(text=text, lang='en', slow=False)
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        return fp
-    except Exception:
-        return None
+def play_audio_html(text_to_speak):
+    """Sử dụng Web Speech API của trình duyệt - Không bao giờ lỗi thư viện"""
+    clean_text = text_to_speak.replace("'", "\\'").replace("\n", " ")
+    js_code = f"""
+        <div style="margin: 10px 0;">
+            <button onclick="speakText()" style="
+                background-color: #4CAF50;
+                border: none;
+                color: white;
+                padding: 10px 20px;
+                text-align: center;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 16px;
+                border-radius: 5px;
+                cursor: pointer;">
+                🔊 Phát âm Audio (Giọng đọc Trình duyệt)
+            </button>
+        </div>
+        <script>
+            function speakText() {{
+                window.speechSynthesis.cancel();
+                var msg = new SpeechSynthesisUtterance('{clean_text}');
+                msg.lang = 'en-US';
+                msg.rate = 0.9;
+                window.speechSynthesis.speak(msg);
+            }}
+        </script>
+    """
+    st.components.v1.html(js_code, height=60)
 
 # ==========================================
 # 4. THANH BÊN (SIDEBAR) & CẤU HÌNH
@@ -142,12 +159,10 @@ else:
         with t4:
             st.subheader("Kiểm tra Nghe hiểu (Listening)")
             if st.button("Tạo bài Nghe & Audio", key="btn_p_listen"):
-                with st.spinner("AI đang tạo kịch bản nghe và File Audio..."):
+                with st.spinner("AI đang tạo kịch bản nghe..."):
                     script_res = model.generate_content("Viết 1 đoạn hội thoại đàm phán hợp đồng tiếng Anh dài 15-20 câu.")
                     st.markdown(script_res.text)
-                    audio_file = text_to_speech_audio(script_res.text)
-                    if audio_file:
-                        st.audio(audio_file, format="audio/mp3")
+                    play_audio_html(script_res.text)
                     st.markdown("---")
                     qs_res = model.generate_content(f"Dựa vào bài nghe sau, tạo 10 câu hỏi trắc nghiệm:\n{script_res.text}")
                     st.markdown(qs_res.text)
@@ -163,7 +178,6 @@ else:
                         res = model.generate_content(f"Chấm điểm bài viết sau (chỉ rõ lỗi sai, sửa lỗi, cho điểm CEFR và viết 1 bài mẫu chuẩn >=150 từ):\n\n{essay_text}")
                         st.markdown(res.text)
                         
-                        # TỰ ĐỘNG LƯU KẾT QUẢ VÀO SUPABASE (Không lo mất khi nâng cấp app)
                         safe_save("placement_results", {
                             "writing_feedback": res.text,
                             "overall_level": "Đã đánh giá bài viết"
@@ -216,9 +230,7 @@ else:
                 with st.spinner("Đang tạo kịch bản..."):
                     script_text = model.generate_content(f"Soạn 1 đoạn hội thoại công sở tiếng Anh Day {day_selected} (15 câu).").text
                     st.markdown(script_text)
-                    audio_fp = text_to_speech_audio(script_text)
-                    if audio_fp:
-                        st.audio(audio_fp, format="audio/mp3")
+                    play_audio_html(script_text)
 
         with d_t4:
             st.subheader("Bài Đọc hiểu (Đoạn văn >= 20 câu)")
@@ -239,7 +251,6 @@ else:
                         res = model.generate_content(f"Chấm điểm bài viết Day {day_selected}:\n{daily_essay}\n\nYêu cầu: Sửa từng lỗi sai, Chấm điểm CEFR, và Viết 1 bài mẫu xuất sắc.")
                         st.markdown(res.text)
                         
-                        # LƯU TIẾN ĐỘ BÀI HỌC VÀ LỖI SAI VÀO SUPABASE
                         safe_save("lesson_progress", {
                             "day_number": day_selected,
                             "skill": "Writing",
