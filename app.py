@@ -44,11 +44,18 @@ def safe_fetch(table_name: str):
     except Exception:
         return []
 
+def get_user_current_level():
+    """Lấy trình độ CEFR mới nhất từ bài Placement Test trong Database"""
+    results = safe_fetch("placement_results")
+    if results and len(results) > 0:
+        latest = results[0]
+        return latest.get("overall_level", "B1 Intermediate")
+    return "Chưa kiểm tra (Mặc định: B1 Intermediate)"
+
 # ==========================================
-# 3. HÀM PHÁT ÂM TIẾNG ANH (BẰNG NATIVE BROWSER SPEECH)
+# 3. HÀM PHÁT ÂM TIẾNG ANH (BROWSER SPEECH API)
 # ==========================================
 def play_audio_html(text_to_speak):
-    """Sử dụng Web Speech API của trình duyệt - Không bao giờ lỗi thư viện"""
     clean_text = text_to_speak.replace("'", "\\'").replace("\n", " ")
     js_code = f"""
         <div style="margin: 10px 0;">
@@ -101,10 +108,12 @@ with st.sidebar:
     
     st.divider()
     st.subheader("📊 Trạng Thái Database")
+    current_lvl = get_user_current_level()
     if supabase:
-        st.success("Supabase: Đã kết nối (Dữ liệu được sao lưu)")
+        st.success("Supabase: Đã kết nối")
     else:
         st.warning("Supabase: Chưa kết nối (Chạy tạm thời)")
+    st.info(f"🎯 **Level CEFR Hiện Tại:**\n\n### `{current_lvl}`")
 
 # ==========================================
 # 5. CẤU HÌNH SYSTEM PROMPT & GEMINI
@@ -112,9 +121,9 @@ with st.sidebar:
 SYSTEM_PROMPT = """
 Bạn là Giảng viên Chuyên gia Business English Cao cấp.
 Quy tắc giảng dạy:
-1. Luôn chấm điểm chính xác các kỹ năng theo tiêu chí CEFR (A2, B1, B2, C1).
-2. Khi học viên làm bài Viết (>=100 từ): Hãy sửa lỗi theo chuẩn: [Câu gốc] -> [Câu sửa] -> [Lý do] và BẮT BUỘC cung cấp 1 bài mẫu (Model Answer) chuyên nghiệp.
-3. Luôn đáp ứng đủ số lượng câu hỏi và độ dài văn bản theo yêu cầu của học viên.
+1. Luôn chấm điểm chính xác các kỹ năng theo tiêu chí CEFR (A2, B1, B2, C1, C2).
+2. Khi cá nhân hóa bài học, hãy bám sát chính xác trình độ mục tiêu của học viên.
+3. Khi học viên làm bài Viết (>=100 từ): Hãy sửa lỗi theo chuẩn: [Câu gốc] -> [Câu sửa] -> [Lý do] và BẮT BUỘC cung cấp 1 bài mẫu (Model Answer) chuyên nghiệp đúng trình độ.
 """
 
 if not api_key:
@@ -128,18 +137,26 @@ else:
     # ==========================================
     if app_mode == "1. Đánh giá đầu vào (Placement Test)":
         st.title("📋 Bài Kiểm Tra Đánh Giá Đầu Vào Comprehensive")
-        st.caption("Kết quả test sẽ tự động lưu vào Database để theo dõi sự tiến bộ qua thời gian.")
+        
+        # BẢNG HIỂN THỊ KẾT QUẢ LEVEL HIỆN TẠI
+        current_lvl = get_user_current_level()
+        st.markdown(f"""
+        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #1E88E5; margin-bottom: 20px;">
+            <h4 style="margin:0; color: #1E88E5;">🏆 Trình độ CEFR Đã Ghi Nhận: <b>{current_lvl}</b></h4>
+            <p style="margin:5px 0 0 0; font-size: 14px; color: #555;">Kết quả đánh giá này được dùng để cá nhân hóa toàn bộ Giáo trình 30 ngày của bạn.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
         t1, t2, t3, t4, t5, t6 = st.tabs([
             "1. Từ vựng (15 Qs)", "2. Ngữ pháp (15 Qs)", "3. Đọc hiểu (20 câu)", 
-            "4. Nghe hiểu (10 Qs)", "5. Viết (>=100 từ)", "6. Nói (3 Topics)"
+            "4. Nghe hiểu (10 Qs)", "5. Viết & Đánh giá CEFR", "6. Nói (3 Topics)"
         ])
 
         with t1:
             st.subheader("Kiểm tra Từ vựng (15 câu hỏi)")
             if st.button("Tạo đề Từ vựng", key="btn_p_vocab"):
                 with st.spinner("AI đang tạo đề..."):
-                    res = model.generate_content("Tạo 15 câu hỏi trắc nghiệm từ vựng Business English (từ A2 đến C1) kèm đáp án ẩn bên dưới.")
+                    res = model.generate_content("Tạo 15 câu hỏi trắc nghiệm từ vựng Business English (phân bổ từ A2 đến C1) kèm đáp án ẩn bên dưới.")
                     st.markdown(res.text)
 
         with t2:
@@ -152,7 +169,7 @@ else:
         with t3:
             st.subheader("Kiểm tra Đọc hiểu (Reading)")
             if st.button("Tạo bài Đọc hiểu", key="btn_p_read"):
-                with st.spinner("AI đang khởi tạo đoạn văn 20 câu và 15 câu hỏi..."):
+                with st.spinner("AI đang khởi tạo đoạn văn 20 câu..."):
                     res = model.generate_content("Viết 1 đoạn văn chủ đề Business Strategy dài ÍT NHẤT 20 CÂU. Phía dưới đưa ra 15 câu hỏi trắc nghiệm đọc hiểu.")
                     st.markdown(res.text)
 
@@ -168,21 +185,54 @@ else:
                     st.markdown(qs_res.text)
 
         with t5:
-            st.subheader("Kiểm tra Viết (Writing)")
+            st.subheader("Kiểm tra Viết (Writing & Chấm điểm Level CEFR)")
             essay_text = st.text_area("Nhập bài viết của bạn (Tối thiểu 100 từ):", height=200, key="p_essay")
-            if st.button("Chấm điểm & Lưu kết quả Test Viết", key="btn_p_score_write"):
+            
+            if st.button("Chấm điểm & Cập nhật Level CEFR", key="btn_p_score_write"):
                 if len(essay_text.split()) < 100:
                     st.warning(f"Bài viết hiện tại mới có {len(essay_text.split())} từ. Vui lòng viết đủ 100 từ!")
                 else:
-                    with st.spinner("AI đang chấm điểm chi tiết..."):
-                        res = model.generate_content(f"Chấm điểm bài viết sau (chỉ rõ lỗi sai, sửa lỗi, cho điểm CEFR và viết 1 bài mẫu chuẩn >=150 từ):\n\n{essay_text}")
+                    with st.spinner("AI đang phân tích và xếp cấp độ CEFR..."):
+                        prompt_eval = f"""
+                        Chấm điểm bài viết sau để xác định level CEFR:
+                        {essay_text}
+                        
+                        Yêu cầu cấu trúc phản hồi BẮT BUỘC:
+                        ---
+                        ### 🎖️ BẢNG TỔNG KẾT ĐÁNH GIÁ CEFR
+                        - **Mức CEFR Tổng:** [Chỉ chọn 1 trong: A2 Elementary / B1 Intermediate / B2 Upper-Intermediate / C1 Advanced / C2 Proficient]
+                        - **Từ vựng (Vocabulary):** [Nhận xét & Mức CEFR]
+                        - **Ngữ pháp (Grammar):** [Nhận xét & Mức CEFR]
+                        - **Độ mạch lạc (Coherence):** [Nhận xét & Mức CEFR]
+                        ---
+                        ### 🔍 CHI TIẾT LỖI SAI VÀ SỬA CÂU
+                        (Sửa chi tiết từng câu sai)
+                        
+                        ---
+                        ### ✍️ BÀI VIẾT MẪU ĐẠT CHUẨN MỤC TIÊU (MODEL ANSWER)
+                        (Viết 1 bài mẫu hoàn chỉnh >=150 từ)
+
+                        Dòng ĐẦU TIÊN của phản hồi phải ghi chính xác: [LEVEL: <Tên_Mức_CEFR>]
+                        Ví dụ: [LEVEL: B2 Upper-Intermediate]
+                        """
+                        res = model.generate_content(prompt_eval)
                         st.markdown(res.text)
                         
+                        # Trích xuất level để lưu vào Database
+                        detected_level = "B1 Intermediate"
+                        if "[LEVEL:" in res.text:
+                            try:
+                                detected_level = res.text.split("[LEVEL:")[1].split("]")[0].strip()
+                            except:
+                                detected_level = "B1 Intermediate"
+
+                        # Lưu kết quả
                         safe_save("placement_results", {
                             "writing_feedback": res.text,
-                            "overall_level": "Đã đánh giá bài viết"
+                            "overall_level": detected_level
                         })
-                        st.success("✅ Đã sao lưu kết quả đánh giá vào Database an toàn!")
+                        st.balloons()
+                        st.success(f"🎉 ĐÃ CẬP NHẬT TRÌNH ĐỘ THÀNH CÔNG: **{detected_level}**! Hãy chuyển sang Chế độ 2 để bắt đầu học.")
 
         with t6:
             st.subheader("Kiểm tra Nói (Speaking - 3 Topics)")
@@ -192,18 +242,21 @@ else:
                     audio_bytes = spoken_audio.read()
                     res = model.generate_content([
                         {"mime_type": "audio/wav", "data": audio_bytes},
-                        "Chuyển giọng nói thành text, đánh giá ngữ pháp, phát âm và Business Tone."
+                        "Chuyển giọng nói thành text, đánh giá ngữ pháp, phát âm và xếp loại trình độ CEFR."
                     ])
                     st.markdown(res.text)
 
     # ==========================================
-    # PHẦN 2: GIÁO TRÌNH 30 NGÀY (BUSINESS ENGLISH)
+    # PHẦN 2: GIÁO TRÌNH 30 NGÀY (CÁ NHÂN HÓA THEO LEVEL)
     # ==========================================
     elif app_mode == "2. Giáo trình 30 Ngày (Business English)":
-        st.title("📚 Giáo Trình Cố Định 30 Ngày - Business English")
+        user_level = get_user_current_level()
+        
+        st.title("📚 Giáo Trình 30 Ngày - Business English")
+        st.info(f"🎯 **Độ khó bài học hiện tại đang khóa theo trình độ:** **{user_level}**")
         
         day_selected = st.slider("Chọn ngày học:", 1, 30, 1)
-        st.header(f"📌 Chi Tiết Bài Học: Day {day_selected}")
+        st.header(f"📌 Chi Tiết Bài Học: Day {day_selected} (Trình độ {user_level})")
 
         d_t1, d_t2, d_t3, d_t4, d_t5, d_t6 = st.tabs([
             "📖 Từ vựng", "📝 Ngữ pháp", "🎧 Nghe", 
@@ -211,55 +264,68 @@ else:
         ])
 
         with d_t1:
-            st.subheader(f"10 Từ Vựng Thương Mại - Day {day_selected}")
+            st.subheader(f"10 Từ Vựng Thương Mại (Level {user_level}) - Day {day_selected}")
             if st.button("Tải 10 từ vựng", key=f"btn_d_vocab_{day_selected}"):
-                with st.spinner("Đang tải danh sách từ vựng..."):
-                    res = model.generate_content(f"Soạn 10 từ vựng Business English cho Day {day_selected}. Định dạng bảng: Từ tiếng Anh | Giải nghĩa EN | Giải nghĩa VI | Từ đồng nghĩa | Ví dụ câu.")
+                with st.spinner("Đang tải danh sách từ vựng cá nhân hóa..."):
+                    prompt = f"Soạn 10 từ vựng Business English chuẩn trình độ {user_level} cho Day {day_selected}. Định dạng bảng: Từ tiếng Anh | Giải nghĩa EN | Giải nghĩa VI | Từ đồng nghĩa | Ví dụ câu thực tế."
+                    res = model.generate_content(prompt)
                     st.markdown(res.text)
 
         with d_t2:
-            st.subheader("Ngữ pháp theo Chủ đề")
+            st.subheader(f"Ngữ pháp Thương Mại (Level {user_level})")
             if st.button("Tải bài học Ngữ pháp", key=f"btn_d_gram_{day_selected}"):
                 with st.spinner("Đang tải lý thuyết..."):
-                    res = model.generate_content(f"Dạy 1 chủ đề Ngữ pháp Business English cho Day {day_selected}. Sau đó tạo 12 câu hỏi trắc nghiệm đánh giá kèm đáp án.")
+                    prompt = f"Dạy 1 chủ đề Ngữ pháp Business English thiết kế riêng cho trình độ {user_level} (Day {day_selected}). Sau đó tạo 12 câu hỏi trắc nghiệm đánh giá kèm đáp án."
+                    res = model.generate_content(prompt)
                     st.markdown(res.text)
 
         with d_t3:
-            st.subheader("Bài tập Nghe hiểu")
+            st.subheader(f"Bài tập Nghe hiểu (Level {user_level})")
             if st.button("Tạo bài Nghe Day này", key=f"btn_d_listen_{day_selected}"):
-                with st.spinner("Đang tạo kịch bản..."):
-                    script_text = model.generate_content(f"Soạn 1 đoạn hội thoại công sở tiếng Anh Day {day_selected} (15 câu).").text
+                with st.spinner("Đang tạo kịch bản nghe..."):
+                    prompt = f"Soạn 1 đoạn hội thoại công sở tiếng Anh chuẩn trình độ {user_level} cho Day {day_selected} (dài 15 câu)."
+                    script_text = model.generate_content(prompt).text
                     st.markdown(script_text)
                     play_audio_html(script_text)
 
         with d_t4:
-            st.subheader("Bài Đọc hiểu (Đoạn văn >= 20 câu)")
+            st.subheader(f"Bài Đọc hiểu (Level {user_level} - Đoạn văn >= 20 câu)")
             if st.button("Tải bài Đọc Day này", key=f"btn_d_read_{day_selected}"):
                 with st.spinner("Đang khởi tạo đoạn văn..."):
-                    res = model.generate_content(f"Viết 1 bài báo Business tiếng Anh dài ÍT NHẤT 20 CÂU cho Day {day_selected}. Phía dưới tạo 15 câu hỏi trắc nghiệm.")
+                    prompt = f"Viết 1 bài báo/văn bản Business tiếng Anh dành cho trình độ {user_level} dài ÍT NHẤT 20 CÂU cho Day {day_selected}. Phía dưới tạo 15 câu hỏi trắc nghiệm."
+                    res = model.generate_content(prompt)
                     st.markdown(res.text)
 
         with d_t5:
-            st.subheader("Bài tập Viết Business (>= 100 từ)")
+            st.subheader(f"Bài tập Viết Business (>= 100 từ - Tiêu chuẩn {user_level})")
             daily_essay = st.text_area("Bài làm của bạn:", height=180, key=f"daily_write_in_{day_selected}")
             
             if st.button("Chấm điểm & Nộp bài", key=f"btn_d_score_write_{day_selected}"):
                 if len(daily_essay.split()) < 100:
                     st.warning("Vui lòng viết đủ tối thiểu 100 từ!")
                 else:
-                    with st.spinner("AI đang chấm điểm..."):
-                        res = model.generate_content(f"Chấm điểm bài viết Day {day_selected}:\n{daily_essay}\n\nYêu cầu: Sửa từng lỗi sai, Chấm điểm CEFR, và Viết 1 bài mẫu xuất sắc.")
+                    with st.spinner("AI đang chấm điểm theo tiêu chí level..."):
+                        prompt = f"""
+                        Học viên có trình độ hiện tại là {user_level}. Hãy chấm điểm bài viết Day {day_selected}:
+                        {daily_essay}
+                        
+                        Yêu cầu:
+                        1. Nhận xét bài viết đã đạt chuẩn {user_level} chưa.
+                        2. Sửa từng lỗi sai chi tiết.
+                        3. Cung cấp 1 bài viết mẫu (Model Answer) đạt chuẩn mốc trình độ TIẾP THEO cao hơn 1 bậc.
+                        """
+                        res = model.generate_content(prompt)
                         st.markdown(res.text)
                         
                         safe_save("lesson_progress", {
                             "day_number": day_selected,
-                            "skill": "Writing",
+                            "skill": f"Writing ({user_level})",
                             "user_submission": daily_essay,
                             "ai_feedback": res.text
                         })
                         safe_save("error_logs", {
                             "skill": "Writing",
-                            "lesson": f"Day {day_selected}",
+                            "lesson": f"Day {day_selected} ({user_level})",
                             "original": daily_essay[:100] + "...",
                             "corrected": "Xem chi tiết phản hồi AI",
                             "reason": "Phân tích ngữ pháp & Business Tone"
@@ -267,14 +333,14 @@ else:
                         st.success(f"✅ Đã lưu tiến độ Day {day_selected} vào hệ thống!")
 
         with d_t6:
-            st.subheader("Luyện Nói Tương Tác")
+            st.subheader(f"Luyện Nói Tương Tác (Target Level {user_level})")
             daily_audio = st.audio_input("Ghi âm câu trả lời:")
             if daily_audio and st.button("Phân tích bài Nói", key=f"btn_d_score_speak_{day_selected}"):
                 with st.spinner("AI đang phân tích..."):
                     audio_bytes = daily_audio.read()
                     res = model.generate_content([
                         {"mime_type": "audio/wav", "data": audio_bytes},
-                        "Chuyển giọng nói thành text, phân tích phát âm và ngữ pháp."
+                        f"Chuyển giọng nói thành text, phân tích phát âm và ngữ pháp so với tiêu chuẩn {user_level}."
                     ])
                     st.markdown(res.text)
 
