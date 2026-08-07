@@ -1,5 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
+from google.api_core.client_options import ClientOptions
 from supabase import create_client, Client
 import time
 
@@ -26,7 +27,6 @@ if supabase_url and supabase_key:
     except Exception:
         supabase = None
 
-# --- HÀM TƯƠNG TÁC DATABASE AN TOÀN ---
 def safe_save(table_name: str, data_dict: dict):
     if not supabase:
         return False
@@ -46,7 +46,6 @@ def safe_fetch(table_name: str):
         return []
 
 def get_user_current_level():
-    """Lấy trình độ CEFR mới nhất từ bài Placement Test trong Database"""
     results = safe_fetch("placement_results")
     if results and len(results) > 0:
         latest = results[0]
@@ -117,7 +116,7 @@ with st.sidebar:
     st.info(f"🎯 **Level CEFR Hiện Tại:**\n\n### `{current_lvl}`")
 
 # ==========================================
-# 5. CẤU HÌNH SYSTEM PROMPT & HÀM GỌI AI CHỐNG LỖI QUOTA
+# 5. CẤU HÌNH AI & XỬ LÝ LỖI MODEL/QUOTA TRIỆT ĐỂ
 # ==========================================
 SYSTEM_PROMPT = """
 Bạn là Giảng viên Chuyên gia Business English Cao cấp.
@@ -128,32 +127,80 @@ Quy tắc giảng dạy:
 """
 
 def generate_ai_response(contents):
-    """Gửi yêu cầu tới Gemini với cơ chế retry và bắt lỗi 429 (ResourceExhausted) an toàn"""
-    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_PROMPT)
+    """
+    Gọi Gemini API với cơ chế chống lỗi 404 (Model Not Found) 
+    và chống lỗi 429 (Resource Exhausted / Quota Exceeded).
+    """
+    # Danh sách các tên model dự phòng sắp xếp theo ưu tiên
+    model_candidates = [
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-pro",
+        "gemini-2.0-flash-exp",
+        "gemini-pro"
+    ]
     
-    max_retries = 3
-    for attempt in range(max_retries):
+    # 1. Ép buộc endpoint v1 để tránh lỗi endpoint v1beta bị hỏng 404
+    try:
+        client_opts = ClientOptions(api_endpoint="generativelanguage.googleapis.com")
+        genai.configure(api_key=api_key, client_options=client_opts)
+    except Exception:
+        genai.configure(api_key=api_key)
+
+    # 2. Lấy danh sách model thực tế được hỗ trợ bởi API Key (nếu có thể)
+    supported_models = []
+    try:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                # m.name có dạng 'models/gemini-1.5-flash'
+                name_clean = m.name.replace("models/", "")
+                supported_models.append(name_clean)
+    except Exception:
+        pass
+
+    # Nếu tìm thấy danh sách hỗ trợ từ API key, ưu tiên dùng danh sách đó
+    if supported_models:
+        final_model_list = supported_models + [m for m in model_candidates if m not in supported_models]
+    else:
+        final_model_list = model_candidates
+
+    # 3. Thử lần lượt từng model cho tới khi thành công
+    last_error = ""
+    for model_name in final_model_list:
         try:
-            response = model.generate_content(contents)
-            return response.text
+            model = genai.GenerativeModel(model_name, system_instruction=SYSTEM_PROMPT)
+            
+            # Xử lý Retry với lỗi Quota (429)
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    response = model.generate_content(contents)
+                    if response and response.text:
+                        return response.text
+                except Exception as req_err:
+                    err_str = str(req_err)
+                    if "ResourceExhausted" in err_str or "429" in err_str:
+                        if attempt < max_retries - 1:
+                            time.sleep(2)
+                            continue
+                    raise req_err
         except Exception as e:
-            err_str = str(e)
-            if "ResourceExhausted" in err_str or "429" in err_str:
-                if attempt < max_retries - 1:
-                    time.sleep(2)  # Đợi 2 giây rồi thử lại
-                    continue
-                else:
-                    st.error("⏳ API Key của bạn đang bị quá tải lượt gọi (Quota Exceeded / 429). Vui lòng đợi khoảng 30 - 60 giây rồi thử lại, hoặc kiểm tra hạn ngạch trên Google AI Studio.")
-                    return None
-            else:
-                st.error(f"❌ Lỗi khi kết nối AI: {err_str}")
+            last_error = str(e)
+            # Nếu gặp lỗi 404 thì bỏ qua model này để thử model tiếp theo trong danh sách
+            if "404" in last_error or "not found" in last_error.lower():
+                continue
+            # Nếu lỗi Quota đã thử lại không được thì báo lỗi Quota
+            elif "ResourceExhausted" in last_error or "429" in last_error:
+                st.error("⏳ API Key đang vượt quá hạn ngạch (Quota Exceeded / 429). Vui lòng đợi 30-60 giây rồi nhấn thử lại!")
                 return None
 
-if not api_key:
-    st.warning("⚠️ Vui lòng cấu hình Gemini API Key để sử dụng app!")
-else:
-    genai.configure(api_key=api_key)
+    # Nếu đã thử hết danh sách mà vẫn lỗi 404/Not Found
+    st.error(f"❌ Không thể tìm thấy Model khả dụng cho API Key này. Lỗi cuối: {last_error}")
+    return None
 
+if not api_key:
+    st.warning("⚠️ Vui lòng cấu hình Gemini API Key để sử dụng ứng dụng!")
+else:
     # ==========================================
     # PHẦN 1: ĐÁNH GIÁ ĐẦU VÀO (PLACEMENT TEST)
     # ==========================================
