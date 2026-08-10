@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import requests
 import json
 import re
@@ -9,74 +10,39 @@ from supabase import create_client, Client
 # 1. CẤU HÌNH TRANG WEB & THEME APEX ENGLISH
 # ==========================================
 st.set_page_config(
-    page_title="Apex English - C-Suite Executive Coaching",
+    page_title="Apex English - 30-Day Business Curriculum",
     page_icon="🎓",
     layout="wide"
 )
 
-# CSS FIX TRIỆT ĐỂ LỖI DARK MODE & MÀU CHỮ
+# CSS FIX THEME SÁNG/TỐI & GIAO DIỆN
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
-    
-    .stApp {
-        background-color: #f8fafc !important;
-        color: #0f172a !important;
-    }
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    .stApp { background-color: #f8fafc !important; color: #0f172a !important; }
 
-    /* FIX CHỮ TAB, INPUT, RADIO, SELECTBOX */
-    div[data-baseweb="tab"] div {
-        color: #334155 !important;
-        font-weight: 600 !important;
-    }
-    
-    div[data-baseweb="tab"][aria-selected="true"] div {
-        color: #4f46e5 !important;
-        font-weight: 700 !important;
-    }
+    div[data-baseweb="tab"] div { color: #334155 !important; font-weight: 600 !important; }
+    div[data-baseweb="tab"][aria-selected="true"] div { color: #4f46e5 !important; font-weight: 700 !important; }
 
-    div[class*="stRadio"] label, 
-    div[class*="stRadio"] label p, 
-    div[class*="stRadio"] div, 
-    .stRadio p, .stRadio label, .stRadio span {
-        color: #0f172a !important;
-        font-weight: 500 !important;
-        font-size: 15px !important;
-    }
-
-    .fast-track-box {
-        background-color: #ffffff !important;
-        border: 1.5px dashed #6366f1 !important;
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 20px;
-        color: #0f172a !important;
-    }
+    div[class*="stRadio"] label, div[class*="stRadio"] label p { color: #0f172a !important; font-weight: 500 !important; }
 
     .apex-card {
         background-color: #ffffff !important;
         border: 1px solid #e2e8f0 !important;
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 16px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        color: #0f172a !important;
-    }
-
-    .stTextInput input, div[data-baseweb="select"] div {
-        background-color: #ffffff !important;
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         color: #0f172a !important;
     }
 
     .correct-card {
         background-color: #f0fdf4 !important;
         border-left: 4px solid #16a34a !important;
-        padding: 14px;
-        border-radius: 8px;
+        padding: 12px;
+        border-radius: 6px;
         margin-top: 8px;
         color: #14532d !important;
     }
@@ -84,8 +50,8 @@ st.markdown("""
     .wrong-card {
         background-color: #fef2f2 !important;
         border-left: 4px solid #dc2626 !important;
-        padding: 14px;
-        border-radius: 8px;
+        padding: 12px;
+        border-radius: 6px;
         margin-top: 8px;
         color: #7f1d1d !important;
     }
@@ -94,12 +60,16 @@ st.markdown("""
         background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
         color: white !important;
         border: none !important;
-        border-radius: 10px !important;
-        padding: 10px 24px !important;
+        border-radius: 8px !important;
+        padding: 10px 20px !important;
         font-weight: 600 !important;
     }
 </style>
 """, unsafe_allow_html=True)
+
+# Khởi tạo kho lưu trữ lỗi sai trong session state
+if "wrong_answers_log" not in st.session_state:
+    st.session_state["wrong_answers_log"] = []
 
 # ==========================================
 # 2. KHỞI TẠO SUPABASE AN TOÀN
@@ -118,74 +88,25 @@ if supabase_url and supabase_key:
         supabase = None
 
 def safe_save(table_name: str, data_dict: dict):
-    if not supabase:
-        return False
+    if not supabase: return False
     try:
         supabase.table(table_name).insert(data_dict).execute()
         return True
-    except Exception:
-        return False
+    except Exception: return False
 
 def safe_fetch(table_name: str):
-    if not supabase:
-        return []
+    if not supabase: return []
     try:
         res = supabase.table(table_name).select("*").order("created_at", desc=True).execute()
         return res.data if res.data else []
-    except Exception:
-        return []
-
-def get_user_data():
-    results = safe_fetch("placement_results")
-    if results and len(results) > 0:
-        return results[0]
-    return {"overall_level": "B1 Intermediate", "user_name": "Executive"}
+    except Exception: return []
 
 # ==========================================
-# 3. HELPER FUNCTIONS
-# ==========================================
-def extract_json_safely(raw_text):
-    if not raw_text:
-        return None
-    match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return raw_text.strip()
-
-def sanitize_questions(raw_questions):
-    clean_list = []
-    if not isinstance(raw_questions, list):
-        return clean_list
-
-    for idx, q in enumerate(raw_questions, 1):
-        if not isinstance(q, dict):
-            continue
-        
-        q_id = str(q.get('id', idx))
-        q_text = str(q.get('question', q.get('title', f'Question {idx}')))
-        opts = q.get('options', q.get('choices', q.get('answers', [])))
-        if not isinstance(opts, list):
-            opts = []
-            
-        opts_clean = [str(o) for o in opts]
-        answer = str(q.get('answer', q.get('correct_answer', ''))).strip()
-        explanation = str(q.get('explanation', 'No explanation provided.')).strip()
-
-        clean_list.append({
-            "id": q_id,
-            "question": q_text,
-            "options": opts_clean,
-            "answer": answer,
-            "explanation": explanation
-        })
-    return clean_list
-
-# ==========================================
-# 4. THANH BÊN & GỌI GROQ API
+# 3. HELPER FUNCTIONS & GROQ API
 # ==========================================
 with st.sidebar:
     st.markdown("### 🎓 **Apex English**")
-    st.caption("C-SUITE EXECUTIVE COACHING")
+    st.caption("BUSINESS ENGLISH 30-DAY NEXT LEVEL")
     
     default_groq_key = st.secrets.get("GROQ_API_KEY", "")
     api_key = st.text_input("Groq API Key:", value=default_groq_key, type="password")
@@ -196,16 +117,11 @@ with st.sidebar:
         [
             "1. Comprehensive Diagnostic Assessment", 
             "2. 30-Day Executive Curriculum", 
-            "3. Error Log & Performance Review"
+            "3. Error Log & Review Remind"
         ]
     )
-    
-    st.divider()
-    user_info = get_user_data()
-    st.markdown(f"**Executive:** {user_info.get('user_name', 'User')}")
-    st.markdown(f"**Active Level:** `{user_info.get('overall_level', 'B1 Intermediate')}`")
 
-SYSTEM_PROMPT = "You are a C-suite Executive English Coach. Always provide high-level, precise, structured feedback. Outputs MUST strictly be valid JSON."
+SYSTEM_PROMPT = "You are a senior Business English Coach. Always provide well-structured output. JSON responses must be strict valid JSON."
 
 def generate_ai_response(prompt_input):
     if not api_key:
@@ -213,12 +129,8 @@ def generate_ai_response(prompt_input):
         return None
 
     clean_key = re.sub(r'[^\x00-\x7F]+', '', str(api_key)).strip()
-    
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {clean_key}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {clean_key}", "Content-Type": "application/json"}
     
     payload = {
         "model": "llama-3.3-70b-versatile",
@@ -231,47 +143,52 @@ def generate_ai_response(prompt_input):
     }
 
     try:
-        session = requests.Session()
-        response = session.post(url, headers=headers, json=payload, timeout=30)
+        response = requests.post(url, headers=headers, json=payload, timeout=40)
         if response.status_code == 200:
-            res_json = response.json()
-            return res_json['choices'][0]['message']['content']
+            return response.json()['choices'][0]['message']['content']
         else:
-            st.error(f"Groq API Error ({response.status_code}): {response.text}")
+            st.error(f"API Error ({response.status_code}): {response.text}")
             return None
     except Exception as e:
         st.error(f"Connection Error: {str(e)}")
         return None
 
-# ==========================================
-# 5. HÀM RENDER TRẮC NGHIỆM
-# ==========================================
-def render_mcq(tab_key, prompt_text, btn_label):
+def extract_json_safely(raw_text):
+    if not raw_text: return None
+    match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
+    return match.group(1).strip() if match else raw_text.strip()
+
+def sanitize_questions(raw_questions):
+    clean_list = []
+    if not isinstance(raw_questions, list): return clean_list
+    for idx, q in enumerate(raw_questions, 1):
+        if not isinstance(q, dict): continue
+        clean_list.append({
+            "id": str(q.get('id', idx)),
+            "question": str(q.get('question', f'Question {idx}')),
+            "options": [str(o) for o in q.get('options', [])],
+            "answer": str(q.get('answer', '')).strip(),
+            "explanation": str(q.get('explanation', 'No explanation')).strip()
+        })
+    return clean_list
+
+def render_quiz_engine(tab_key, prompt_text, btn_label):
     if st.button(btn_label, key=f"btn_{tab_key}", use_container_width=True):
-        with st.spinner("AI is generating assessment questions..."):
+        with st.spinner("AI is generating questions..."):
             raw = generate_ai_response(prompt_text)
             clean = extract_json_safely(raw)
             if clean:
                 try:
                     parsed = json.loads(clean)
-                    passage_text = ""
-                    raw_q_list = []
-
-                    if isinstance(parsed, dict):
-                        passage_text = parsed.get("passage", "")
-                        raw_q_list = parsed.get("questions", parsed.get("data", []))
-                    elif isinstance(parsed, list):
-                        raw_q_list = parsed
-
-                    clean_q_list = sanitize_questions(raw_q_list)
-
-                    st.session_state[f"{tab_key}_passage"] = passage_text
-                    st.session_state[f"{tab_key}_questions"] = clean_q_list
+                    passage = parsed.get("passage", "") if isinstance(parsed, dict) else ""
+                    raw_q = parsed.get("questions", []) if isinstance(parsed, dict) else parsed
+                    st.session_state[f"{tab_key}_passage"] = passage
+                    st.session_state[f"{tab_key}_questions"] = sanitize_questions(raw_q)
                     st.session_state[f"{tab_key}_sub"] = False
                     st.session_state[f"{tab_key}_ans"] = {}
                     st.session_state[f"{tab_key}_ts"] = str(time.time())
                 except Exception as e:
-                    st.error(f"Unable to parse test structure: {e}")
+                    st.error(f"Format parsing error: {e}")
 
     if f"{tab_key}_questions" in st.session_state and st.session_state[f"{tab_key}_questions"]:
         questions = st.session_state[f"{tab_key}_questions"]
@@ -279,223 +196,251 @@ def render_mcq(tab_key, prompt_text, btn_label):
         ts = st.session_state.get(f"{tab_key}_ts", "0")
 
         if passage:
-            st.markdown("### 📄 Content / Context")
+            st.markdown("#### 📄 Passage / Content")
             st.info(passage)
+            # Tự động tạo âm thanh AI đọc cho bài Listening
+            if "listen" in tab_key:
+                tts_code = f"""
+                <script>
+                function playTTS() {{
+                    var msg = new SpeechSynthesisUtterance({json.dumps(passage)});
+                    msg.lang = 'en-US';
+                    window.speechSynthesis.speak(msg);
+                }}
+                </script>
+                <button onclick="playTTS()" style="background:#10b981; color:white; border:none; padding:10px 18px; border-radius:8px; font-weight:bold; cursor:pointer;">
+                    🔊 Play AI Audio Reading (Listening)
+                </button>
+                """
+                components.html(tts_code, height=50)
 
         with st.form(f"form_{tab_key}_{ts}"):
             user_ans = {}
             for idx, q in enumerate(questions, 1):
                 st.markdown(f"**Q{idx}: {q['question']}**")
-                
                 if q['options']:
-                    user_ans[q['id']] = st.radio(
-                        "Select your answer:",
-                        q['options'],
-                        key=f"radio_{tab_key}_{ts}_{idx}_{q['id']}",
-                        index=None
-                    )
-                else:
-                    st.warning("No choices available for this question.")
+                    user_ans[q['id']] = st.radio("Choose:", q['options'], key=f"r_{tab_key}_{ts}_{idx}_{q['id']}", index=None)
                 st.write("---")
 
-            submitted = st.form_submit_button("Submit Answers")
-            if submitted:
+            if st.form_submit_button("Submit Answers"):
                 st.session_state[f"{tab_key}_sub"] = True
                 st.session_state[f"{tab_key}_ans"] = user_ans
 
         if st.session_state.get(f"{tab_key}_sub", False):
             score = 0
             u_ans = st.session_state.get(f"{tab_key}_ans", {})
-            st.markdown("#### 📊 Section Results & Detailed Feedback")
+            st.markdown("#### 📊 Evaluation & Detailed Feedback")
 
             for idx, q in enumerate(questions, 1):
                 selected = u_ans.get(q['id'])
                 correct = q['answer']
-                
                 is_correct = False
-                if selected and correct:
-                    if str(selected).strip().lower() == str(correct).strip().lower():
-                        is_correct = True
-                    elif str(correct).strip().lower() in str(selected).strip().lower():
-                        is_correct = True
+                if selected and correct and (str(selected).strip().lower() == str(correct).strip().lower() or str(correct).strip().lower() in str(selected).strip().lower()):
+                    is_correct = True
 
                 if is_correct:
                     score += 1
-                    st.markdown(f'<div class="correct-card">✅ <b>Q{idx}: Correct!</b> Your choice: <i>{selected}</i></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="correct-card">✅ <b>Q{idx}: Correct!</b> Your answer: <i>{selected}</i></div>', unsafe_allow_html=True)
                 else:
-                    st.markdown(f'<div class="wrong-card">❌ <b>Q{idx}: Incorrect</b>. Your choice: <b>{selected if selected else "Not answered"}</b> | Correct Answer: <b>{correct}</b></div>', unsafe_allow_html=True)
-                
+                    st.markdown(f'<div class="wrong-card">❌ <b>Q{idx}: Incorrect</b>. Selected: <b>{selected if selected else "No answer"}</b> | Correct: <b>{correct}</b></div>', unsafe_allow_html=True)
+                    # Lưu lại câu sai vào nhật ký review
+                    st.session_state["wrong_answers_log"].append({
+                        "category": tab_key,
+                        "question": q['question'],
+                        "your_answer": selected,
+                        "correct_answer": correct,
+                        "explanation": q['explanation']
+                    })
                 st.caption(f"💡 Explanation: {q['explanation']}")
-                st.write("")
 
-            st.success(f"🏆 Final Score: {score}/{len(questions)} ({(score/len(questions))*100:.0f}%)")
-            
-            safe_save("quiz_results", {
-                "category": tab_key,
-                "score": score,
-                "total": len(questions)
-            })
+            st.success(f"🏆 Score: {score}/{len(questions)} ({(score/len(questions))*100:.0f}%)")
 
 # ==========================================
-# 6. GIAO DIỆN CHÍNH
+# 4. CHƯƠNG TRÌNH HỌC 30 NGÀY B1 BUSINESS
 # ==========================================
-if not api_key:
-    st.warning("⚠️ Please enter your Groq API Key in the sidebar to activate Apex English Coach.")
-else:
-    if app_mode == "1. Comprehensive Diagnostic Assessment":
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 24px; border-radius: 16px; margin-bottom: 20px;'>
-            <h1 style='margin:0; font-size: 26px; color: white;'>Apex English Diagnostic Assessment</h1>
-            <p style='margin:5px 0 0 0; opacity:0.9;'>Comprehensive 6-Skill Evaluation (CEFR A1 to C2 Diagnostic)</p>
-        </div>
-        """, unsafe_allow_html=True)
+if app_mode == "2. 30-Day Executive Curriculum":
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px;'>
+        <h2 style='margin:0; color:white;'>30-Day Business English (Level B1 -> Next Level)</h2>
+        <p style='margin:5px 0 0 0; opacity:0.9;'>Full 6 Skills Syllabus with Score Assessment & Error Reminder</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-        with st.expander("⚡ INSTANT DASHBOARD FAST-TRACK", expanded=True):
-            st.markdown('<div class="fast-track-box">', unsafe_allow_html=True)
-            col_f1, col_f2, col_f3 = st.columns(3)
-            with col_f1:
-                exec_name = st.text_input("YOUR FULL NAME", value="Executive Leader")
-            with col_f2:
-                target_level = st.selectbox("TARGET PROFICIENCY", ["B1 Intermediate", "B2 Upper-Intermediate", "C1 Advanced Business", "C2 Executive Mastery"])
-            with col_f3:
-                start_day = st.selectbox("ACTIVE STARTING DAY", [f"Day {i}" for i in range(1, 31)])
-            
-            if st.button("🚀 Set Level & Jump to 30-Day Dashboard", use_container_width=True):
-                safe_save("placement_results", {
-                    "user_name": exec_name,
-                    "overall_level": target_level,
-                    "vocab_score": 15, "grammar_score": 15, "reading_score": 15, "listening_score": 10
-                })
-                st.success(f"Configured for {exec_name}! Level set to {target_level}.")
-            st.markdown('</div>', unsafe_allow_html=True)
+    day = st.slider("Select Day (1 to 30):", 1, 30, 1)
+    st.markdown(f"### 📅 Curriculum Day {day}")
 
-        t1, t2, t3, t4, t5, t6 = st.tabs([
-            "🔤 Vocab (15Q)", "📐 Grammar (15Q)", "📖 Reading", 
-            "🎧 Listening", "✍️ Writing", "🗣️ Speaking"
-        ])
+    t_vocab, t_gram, t_read, t_list, t_write, t_speak = st.tabs([
+        "📚 Vocab (10 Words)", 
+        "📐 Grammar", 
+        "📖 Reading (20 Sentences & 15Q)", 
+        "🎧 Listening (AI Audio & 10Q)", 
+        "✍️ Writing (>=100 words)", 
+        "🗣️ Speaking (STT Voice)"
+    ])
 
-        with t1:
-            vocab_prompt = "Generate 15 Business English Vocabulary questions in JSON format. Return a JSON object with a key 'questions' containing an array of objects. Each object must have: 'id', 'question', 'options' (4 strings), 'answer' (exact matching option), 'explanation'."
-            render_mcq("v_diag", vocab_prompt, "Start 15-Question Vocabulary Assessment")
+    # 1. TỪ VỰNG (10 TỪ/NGÀY)
+    with t_vocab:
+        st.markdown("#### 📚 10 Business Words for Today")
+        if st.button(f"Load Day {day} Vocabulary (10 Words)", key=f"btn_v_{day}", use_container_width=True):
+            with st.spinner("Generating 10 Business words..."):
+                v_prompt = f"Generate EXACTLY 10 Business English vocabulary words for Level B1 on Day {day}. Return JSON format with key 'words' containing an array of objects. Each object MUST have: 'word', 'english_def', 'vietnamese_def', 'synonyms', 'example_sentence'."
+                raw = generate_ai_response(v_prompt)
+                clean = extract_json_safely(raw)
+                if clean:
+                    try:
+                        st.session_state[f"v_words_{day}"] = json.loads(clean).get("words", [])
+                    except Exception as e: st.error(f"Error: {e}")
+
+        if f"v_words_{day}" in st.session_state:
+            for w in st.session_state[f"v_words_{day}"]:
+                st.markdown(f"""
+                <div class="apex-card">
+                    <h4 style="color:#4f46e5; margin:0;">{w.get('word')}</h4>
+                    <p><b>English:</b> {w.get('english_def')} | <b>Tiếng Việt:</b> {w.get('vietnamese_def')}</p>
+                    <p><b>Synonyms:</b> {w.get('synonyms')}</p>
+                    <p style="font-style: italic; color:#475569;">Example: "{w.get('example_sentence')}"</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # 2. NGỮ PHÁP (LÝ THUYẾT + 10-15 CÂU HỎI)
+    with t_gram:
+        st.markdown("#### 📐 Topic Grammar Lesson & Assessment")
+        if st.button(f"Load Day {day} Grammar Lesson", key=f"btn_g_theory_{day}", use_container_width=True):
+            with st.spinner("Loading grammar theory..."):
+                g_lesson_prompt = f"Provide a complete Business English Grammar Lesson for Day {day} suitable for Level B1. Return JSON with keys: 'topic_title', 'theory_content' (detailed explanation with rules and business examples)."
+                raw_g = generate_ai_response(g_lesson_prompt)
+                clean_g = extract_json_safely(raw_g)
+                if clean_g:
+                    st.session_state[f"g_theory_{day}"] = json.loads(clean_g)
+
+        if f"g_theory_{day}" in st.session_state:
+            g_data = st.session_state[f"g_theory_{day}"]
+            st.markdown(f"### Lesson: {g_data.get('topic_title')}")
+            st.info(g_data.get('theory_content'))
+
+        st.divider()
+        g_prompt = f"Generate 10 Grammar assessment questions for Level B1 Day {day}. Return JSON object with key 'questions' containing an array of objects: 'id', 'question', 'options' (4 items), 'answer', 'explanation'."
+        render_quiz_engine(f"gram_day_{day}", g_prompt, f"Start Day {day} Grammar Quiz (10 Questions)")
+
+    # 3. ĐỌC (ĐOẠN VĂN ÍT NHẤT 20 CÂU & 15 CÂU HỎI)
+    with t_read:
+        st.markdown("#### 📖 Reading Comprehension (Long Article >=20 Sentences & 15 Questions)")
+        r_prompt = f"Generate a long Business Reading passage with AT LEAST 20 sentences for Level B1 Day {day}. Then generate EXACTLY 15 multiple-choice comprehension questions. Return JSON with keys: 'passage' and 'questions' (array of 15 objects with 'id', 'question', 'options', 'answer', 'explanation')."
+        render_quiz_engine(f"read_day_{day}", r_prompt, f"Start Day {day} Reading Test (15 Questions)")
+
+    # 4. NGHE (CÓ NÚT ÂM THANH AI & 10 CÂU HỎI)
+    with t_list:
+        st.markdown("#### 🎧 Listening Practice (AI Voice & 10 Questions)")
+        l_prompt = f"Generate a Business Listening script/passage (approx 150 words) for Day {day}. Then generate 10 listening comprehension questions. Return JSON with keys: 'passage' and 'questions' (array of 10 objects with 'id', 'question', 'options', 'answer', 'explanation')."
+        render_quiz_engine(f"listen_day_{day}", l_prompt, f"Start Day {day} Listening Test (10 Questions)")
+
+    # 5. VIẾT (TỐI THIỂU 100 TỪ, CHẤM LỖI & CUNG CẤP BÀI MẪU)
+    with t_write:
+        st.markdown("#### ✍️ Executive Writing Assessment (Minimum 100 Words)")
+        st.info(f"Task Day {day}: Write a formal email or proposal regarding project delays, mitigation plans, and budget negotiation (Minimum 100 words).")
         
-        with t2:
-            grammar_prompt = "Generate 15 Executive English Grammar questions in JSON format. Return a JSON object with a key 'questions' containing an array of objects. Each object must have: 'id', 'question', 'options' (4 strings), 'answer' (exact matching option), 'explanation'."
-            render_mcq("g_diag", grammar_prompt, "Start 15-Question Grammar Assessment")
+        user_text = st.text_area("Your Response:", height=200, key=f"write_input_{day}")
+        word_count = len(re.findall(r'\w+', user_text))
+        st.caption(f"Current Word Count: **{word_count} / 100 words minimum**")
 
-        with t3:
-            reading_prompt = "Generate 1 Business Reading passage followed by 5 comprehension questions in JSON format with keys: 'passage' and 'questions'."
-            render_mcq("r_diag", reading_prompt, "Start Reading Assessment")
+        if st.button("Submit & Grade Writing", key=f"btn_w_grade_{day}", use_container_width=True):
+            if word_count < 100:
+                st.error(f"Your essay is too short ({word_count} words). Please write at least 100 words to submit.")
+            else:
+                with st.spinner("AI is evaluating grammar errors, tone, and generating a model essay..."):
+                    w_prompt = f"Evaluate this Business writing submission ({word_count} words): '{user_text}'. Return JSON with keys: 'score' (out of 100), 'grammar_errors' (list of detailed errors and corrections), 'detailed_feedback', and 'model_essay' (a high-quality professional recommended version >=120 words)."
+                    raw_w = generate_ai_response(w_prompt)
+                    clean_w = extract_json_safely(raw_w)
+                    if clean_w:
+                        w_res = json.loads(clean_w)
+                        st.success(f"🏆 Overall Score: {w_res.get('score')}/100")
+                        st.markdown("##### 🔍 Grammar & Style Corrections:")
+                        st.warning(w_res.get('grammar_errors'))
+                        st.markdown("##### 💡 Feedback & Recommendations:")
+                        st.info(w_res.get('detailed_feedback'))
+                        st.markdown("##### 🌟 Recommended Model Essay:")
+                        st.success(w_res.get('model_essay'))
 
-        with t4:
-            listening_prompt = "Generate 1 Business Audio Transcript passage followed by 5 comprehension questions in JSON format with keys: 'passage' and 'questions'."
-            render_mcq("l_diag", listening_prompt, "Start Listening Assessment")
-
-        with t5:
-            st.markdown("### ✍️ Executive Writing Assessment")
-            user_w = st.text_area("Write a formal response regarding supply chain issues (Min 80 words):", height=150)
-            if st.button("Submit Writing for Evaluation", use_container_width=True):
-                st.success("Writing received and analyzed!")
-
-        with t6:
-            st.markdown("### 🗣️ Executive Speaking Assessment")
-            st.info("Record or type your responses to C-Suite scenarios.")
-
-    elif app_mode == "2. 30-Day Executive Curriculum":
-        user_info = get_user_data()
-        current_lvl = user_info.get("overall_level", "B1 Intermediate")
-
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 24px; border-radius: 16px; margin-bottom: 20px;'>
-            <h1 style='margin:0; font-size: 26px; color: white;'>30-Day Executive Curriculum</h1>
-            <p style='margin:5px 0 0 0; opacity:0.9;'>Personalized Plan for Level: <b>{current_lvl}</b></p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        selected_day = st.slider("Select Lesson Day:", 1, 30, 1)
-        st.markdown(f"## 📅 Day {selected_day} - Executive Training ({current_lvl})")
-
-        d1, d2, d3, d4, d5 = st.tabs([
-            "📚 Daily Vocabulary (10 Words)", 
-            "📐 Grammar Focus", 
-            "📖 Reading Exercise", 
-            "✍️ Writing Prompt", 
-            "🗣️ Speaking Challenge"
-        ])
-
-        with d1:
-            st.markdown(f"### 📚 10 Business Words for Day {selected_day}")
-            if st.button(f"Generate Day {selected_day} Vocabulary", key="btn_v_day", use_container_width=True):
-                with st.spinner("AI is generating 10 tailored business words..."):
-                    v_prompt = f"Generate 10 Business English vocabulary words tailored for level {current_lvl} on Day {selected_day}. Return a JSON object with a key 'words' containing an array of objects. Each object must have: 'word', 'english_def', 'vietnamese_def', 'synonyms', 'example_sentence'."
-                    raw_v = generate_ai_response(v_prompt)
-                    clean_v = extract_json_safely(raw_v)
-                    if clean_v:
-                        try:
-                            parsed_v = json.loads(clean_v)
-                            words_list = parsed_v.get("words", parsed_v) if isinstance(parsed_v, dict) else parsed_v
-                            st.session_state[f"day_{selected_day}_words"] = words_list
-                        except Exception as e:
-                            st.error(f"Data error: {e}")
-
-            if f"day_{selected_day}_words" in st.session_state:
-                for w in st.session_state[f"day_{selected_day}_words"]:
-                    st.markdown(f"""
-                    <div class="apex-card">
-                        <h4 style="color:#4f46e5; margin:0;">{w.get('word','')}</h4>
-                        <p style="margin:5px 0;"><b>English Def:</b> {w.get('english_def','')} | <b>Tiếng Việt:</b> {w.get('vietnamese_def','')}</p>
-                        <p style="margin:5px 0;"><b>Synonyms:</b> {w.get('synonyms','')}</p>
-                        <p style="margin:5px 0; font-style: italic; color:#475569;">Example: "{w.get('example_sentence','')}"</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-        with d2:
-            st.markdown(f"### 📐 Grammar Practice (Day {selected_day})")
-            g_day_prompt = f"Generate 5 Grammar Practice questions for level {current_lvl} Day {selected_day}. Return a JSON object with key 'questions' containing an array of objects ('id', 'question', 'options', 'answer', 'explanation')."
-            render_mcq(f"g_day_{selected_day}", g_day_prompt, f"Start Day {selected_day} Grammar Practice")
-
-        with d3:
-            st.markdown(f"### 📖 Business Reading Exercise (Day {selected_day})")
-            r_day_prompt = f"Generate a short executive reading passage and 3 comprehension questions for level {current_lvl} Day {selected_day}. Return JSON with 'passage' and 'questions'."
-            render_mcq(f"r_day_{selected_day}", r_day_prompt, f"Start Day {selected_day} Reading")
-
-        with d4:
-            st.markdown(f"### ✍️ Daily Executive Writing Prompt")
-            st.info(f"Day {selected_day} Task: Write a concise executive memo summarizing key findings from a market entry report.")
-            user_day_w = st.text_area("Your Draft Response:", height=150, key=f"write_day_{selected_day}")
-            if st.button("Submit Writing for Feedback", key=f"btn_w_day_{selected_day}", use_container_width=True):
-                if len(user_day_w.split()) < 30:
-                    st.warning("Please write at least 30 words for feedback.")
-                else:
-                    with st.spinner("AI evaluating response..."):
-                        w_eval_prompt = f"Analyze this writing draft: '{user_day_w}'. Return JSON with keys 'score' (number), 'feedback' (string), and 'improved_version' (string)."
-                        raw_w_eval = generate_ai_response(w_eval_prompt)
-                        clean_w_eval = extract_json_safely(raw_w_eval)
-                        if clean_w_eval:
-                            res_w = json.loads(clean_w_eval)
-                            st.success(f"Score: {res_w.get('score', 80)}/100")
-                            st.markdown(f"**Feedback:** {res_w.get('feedback', '')}")
-                            st.markdown("**Improved Version:**")
-                            st.info(res_w.get('improved_version', ''))
-
-        with d5:
-            st.markdown(f"### 🗣️ Speaking Challenge (Day {selected_day})")
-            st.write("Practicing verbal pitch and crisis responses.")
-            st.text_area("Type your verbal draft response:", height=100, key=f"spk_day_{selected_day}")
-            if st.button("Submit Speaking Response", key=f"btn_spk_day_{selected_day}", use_container_width=True):
-                st.success("Speaking submission logged!")
-
-    elif app_mode == "3. Error Log & Performance Review":
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 24px; border-radius: 16px; margin-bottom: 20px;'>
-            <h1 style='margin:0; font-size: 26px; color: white;'>Error Log & Performance Review</h1>
-            <p style='margin:5px 0 0 0; opacity:0.9;'>Tracked learning performance and historical quiz metrics.</p>
-        </div>
-        """, unsafe_allow_html=True)
+    # 6. NÓI (SPEECH-TO-TEXT TRỰC TIẾP TỪ MICRO)
+    with t_speak:
+        st.markdown("#### 🗣️ Interactive Speaking Practice (Speech-to-Text)")
+        st.info(f"Topic Day {day}: Present your quarterly performance and key achievements to executive stakeholders.")
         
-        quiz_history = safe_fetch("quiz_results")
-        if quiz_history:
-            st.markdown("### 📊 Quiz Results History")
-            for item in quiz_history:
-                st.markdown(f"- **Category:** `{item.get('category')}` | **Score:** {item.get('score')}/{item.get('total')}")
-        else:
-            st.info("No quiz history recorded yet. Complete assessments to track your metrics.")
+        st.markdown("##### Click microphone to record your speech:")
+        stt_code = """
+        <script>
+        var recognition;
+        function startDictation() {
+            if (window.hasOwnProperty('webkitSpeechRecognition')) {
+                recognition = new webkitSpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = "en-US";
+                recognition.start();
+                document.getElementById('status').innerText = "🎙️ Listening... Speak now!";
+                recognition.onresult = function(e) {
+                    document.getElementById('speechText').value = e.results[0][0].transcript;
+                    document.getElementById('status').innerText = "✅ Speech Captured!";
+                    recognition.stop();
+                };
+                recognition.onerror = function(e) {
+                    document.getElementById('status').innerText = "Error: " + e.error;
+                    recognition.stop();
+                }
+            } else {
+                alert("Web Speech API is not supported in this browser. Use Chrome/Edge.");
+            }
+        }
+        </script>
+        <div style="padding:10px; background:#ffffff; border-radius:10px; border:1px solid #cbd5e1;">
+            <button onclick="startDictation()" style="background:#4f46e5; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">
+                🎙️ Start Microphone (Speech-to-Text)
+            </button>
+            <p id="status" style="margin-top:8px; font-weight:bold; color:#4f46e5;"></p>
+            <textarea id="speechText" style="width:100%; height:90px; margin-top:8px; border-radius:6px; padding:8px;" placeholder="Transcribed text will appear here..."></textarea>
+        </div>
+        """
+        components.html(stt_code, height=220)
+        
+        spk_manual = st.text_area("Or paste/review your transcribed speech text here for AI scoring:", height=100, key=f"spk_txt_{day}")
+        if st.button("Evaluate Speaking Fluency & Grammar", key=f"btn_spk_eval_{day}", use_container_width=True):
+            if spk_manual:
+                with st.spinner("Evaluating speech text..."):
+                    spk_eval_prompt = f"Evaluate this spoken dialogue response: '{spk_manual}'. Return JSON with keys: 'fluency_score' (out of 100), 'pronunciation_notes', 'grammar_corrections', 'better_expression'."
+                    raw_spk = generate_ai_response(spk_eval_prompt)
+                    clean_spk = extract_json_safely(raw_spk)
+                    if clean_spk:
+                        spk_res = json.loads(clean_spk)
+                        st.success(f"Fluency Score: {spk_res.get('fluency_score')}/100")
+                        st.markdown(f"**Grammar & Vocabulary Fixes:** {spk_res.get('grammar_corrections')}")
+                        st.markdown(f"**Better Executive Expression:** {spk_res.get('better_expression')}")
+
+# ==========================================
+# 5. MỤC REVIEW & REMIND (NHẬT KÝ LỖI SAI)
+# ==========================================
+elif app_mode == "3. Error Log & Review Remind":
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px;'>
+        <h2 style='margin:0; color:white;'>Error Log & Review Remind</h2>
+        <p style='margin:5px 0 0 0; opacity:0.9;'>Reminding frequently missed questions & weak skill areas</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    wrong_log = st.session_state.get("wrong_answers_log", [])
+    if wrong_log:
+        st.markdown(f"### ⚠️ You have **{len(wrong_log)}** recorded incorrect answers to review:")
+        for idx, item in enumerate(wrong_log, 1):
+            st.markdown(f"""
+            <div class="wrong-card">
+                <p><b>#{idx} Category:</b> <code>{item.get('category')}</code></p>
+                <p><b>Question:</b> {item.get('question')}</p>
+                <p><b>Your Answer:</b> <span style="color:#dc2626;">{item.get('your_answer')}</span> | <b>Correct Answer:</b> <span style="color:#16a34a;">{item.get('correct_answer')}</span></p>
+                <p><b>Explanation:</b> {item.get('explanation')}</p>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("🎉 Great job! No errors recorded in your session yet. Complete the quizzes to populate your review log.")
+
+elif app_mode == "1. Comprehensive Diagnostic Assessment":
+    st.markdown("### 📊 Diagnostic Assessment Section")
+    st.info("Use Navigation tab 2 to access the complete 30-Day Curriculum.")
