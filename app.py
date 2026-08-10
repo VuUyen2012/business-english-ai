@@ -14,7 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS KHẮC PHỤC HOÀN TOÀN LỖI HIỂN THỊ DARK MODE
+# CSS FIX TRIỆT ĐỂ LỖI DARK MODE & MÀU CHỮ
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -28,7 +28,7 @@ st.markdown("""
         color: #0f172a !important;
     }
 
-    /* FIX MÀU CHỮ TAB, INPUT, RADIO, SELECTBOX */
+    /* FIX CHỮ TAB, INPUT, RADIO, SELECTBOX */
     div[data-baseweb="tab"] div {
         color: #334155 !important;
         font-weight: 600 !important;
@@ -48,13 +48,22 @@ st.markdown("""
         font-size: 15px !important;
     }
 
-    /* FIX NỀN VÀ CHỮ TRONG NÚT BẤM VÀ KHUNG FAST-TRACK */
     .fast-track-box {
         background-color: #ffffff !important;
         border: 1.5px dashed #6366f1 !important;
         border-radius: 16px;
         padding: 20px;
         margin-bottom: 20px;
+        color: #0f172a !important;
+    }
+
+    .apex-card {
+        background-color: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
         color: #0f172a !important;
     }
 
@@ -133,7 +142,7 @@ def get_user_data():
     return {"overall_level": "B1 Intermediate", "user_name": "Executive"}
 
 # ==========================================
-# 3. HELPER FUNCTIONS & CHUẨN HOÁ DỮ LIỆU
+# 3. HELPER FUNCTIONS
 # ==========================================
 def extract_json_safely(raw_text):
     if not raw_text:
@@ -154,7 +163,6 @@ def sanitize_questions(raw_questions):
         
         q_id = str(q.get('id', idx))
         q_text = str(q.get('question', q.get('title', f'Question {idx}')))
-        
         opts = q.get('options', q.get('choices', q.get('answers', [])))
         if not isinstance(opts, list):
             opts = []
@@ -271,7 +279,7 @@ def render_mcq(tab_key, prompt_text, btn_label):
         ts = st.session_state.get(f"{tab_key}_ts", "0")
 
         if passage:
-            st.markdown("### 📄 Reading / Audio Content")
+            st.markdown("### 📄 Content / Context")
             st.info(passage)
 
         with st.form(f"form_{tab_key}_{ts}"):
@@ -358,7 +366,7 @@ else:
                     "overall_level": target_level,
                     "vocab_score": 15, "grammar_score": 15, "reading_score": 15, "listening_score": 10
                 })
-                st.success(f"Configured for {exec_name}! Current Level set to {target_level}.")
+                st.success(f"Configured for {exec_name}! Level set to {target_level}.")
             st.markdown('</div>', unsafe_allow_html=True)
 
         t1, t2, t3, t4, t5, t6 = st.tabs([
@@ -393,7 +401,101 @@ else:
             st.info("Record or type your responses to C-Suite scenarios.")
 
     elif app_mode == "2. 30-Day Executive Curriculum":
-        st.markdown("## 📅 30-Day Curriculum")
+        user_info = get_user_data()
+        current_lvl = user_info.get("overall_level", "B1 Intermediate")
+
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 24px; border-radius: 16px; margin-bottom: 20px;'>
+            <h1 style='margin:0; font-size: 26px; color: white;'>30-Day Executive Curriculum</h1>
+            <p style='margin:5px 0 0 0; opacity:0.9;'>Personalized Plan for Level: <b>{current_lvl}</b></p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        selected_day = st.slider("Select Lesson Day:", 1, 30, 1)
+        st.markdown(f"## 📅 Day {selected_day} - Executive Training ({current_lvl})")
+
+        d1, d2, d3, d4, d5 = st.tabs([
+            "📚 Daily Vocabulary (10 Words)", 
+            "📐 Grammar Focus", 
+            "📖 Reading Exercise", 
+            "✍️ Writing Prompt", 
+            "🗣️ Speaking Challenge"
+        ])
+
+        with d1:
+            st.markdown(f"### 📚 10 Business Words for Day {selected_day}")
+            if st.button(f"Generate Day {selected_day} Vocabulary", key="btn_v_day", use_container_width=True):
+                with st.spinner("AI is generating 10 tailored business words..."):
+                    v_prompt = f"Generate 10 Business English vocabulary words tailored for level {current_lvl} on Day {selected_day}. Return a JSON object with a key 'words' containing an array of objects. Each object must have: 'word', 'english_def', 'vietnamese_def', 'synonyms', 'example_sentence'."
+                    raw_v = generate_ai_response(v_prompt)
+                    clean_v = extract_json_safely(raw_v)
+                    if clean_v:
+                        try:
+                            parsed_v = json.loads(clean_v)
+                            words_list = parsed_v.get("words", parsed_v) if isinstance(parsed_v, dict) else parsed_v
+                            st.session_state[f"day_{selected_day}_words"] = words_list
+                        except Exception as e:
+                            st.error(f"Data error: {e}")
+
+            if f"day_{selected_day}_words" in st.session_state:
+                for w in st.session_state[f"day_{selected_day}_words"]:
+                    st.markdown(f"""
+                    <div class="apex-card">
+                        <h4 style="color:#4f46e5; margin:0;">{w.get('word','')}</h4>
+                        <p style="margin:5px 0;"><b>English Def:</b> {w.get('english_def','')} | <b>Tiếng Việt:</b> {w.get('vietnamese_def','')}</p>
+                        <p style="margin:5px 0;"><b>Synonyms:</b> {w.get('synonyms','')}</p>
+                        <p style="margin:5px 0; font-style: italic; color:#475569;">Example: "{w.get('example_sentence','')}"</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        with d2:
+            st.markdown(f"### 📐 Grammar Practice (Day {selected_day})")
+            g_day_prompt = f"Generate 5 Grammar Practice questions for level {current_lvl} Day {selected_day}. Return a JSON object with key 'questions' containing an array of objects ('id', 'question', 'options', 'answer', 'explanation')."
+            render_mcq(f"g_day_{selected_day}", g_day_prompt, f"Start Day {selected_day} Grammar Practice")
+
+        with d3:
+            st.markdown(f"### 📖 Business Reading Exercise (Day {selected_day})")
+            r_day_prompt = f"Generate a short executive reading passage and 3 comprehension questions for level {current_lvl} Day {selected_day}. Return JSON with 'passage' and 'questions'."
+            render_mcq(f"r_day_{selected_day}", r_day_prompt, f"Start Day {selected_day} Reading")
+
+        with d4:
+            st.markdown(f"### ✍️ Daily Executive Writing Prompt")
+            st.info(f"Day {selected_day} Task: Write a concise executive memo summarizing key findings from a market entry report.")
+            user_day_w = st.text_area("Your Draft Response:", height=150, key=f"write_day_{selected_day}")
+            if st.button("Submit Writing for Feedback", key=f"btn_w_day_{selected_day}", use_container_width=True):
+                if len(user_day_w.split()) < 30:
+                    st.warning("Please write at least 30 words for feedback.")
+                else:
+                    with st.spinner("AI evaluating response..."):
+                        w_eval_prompt = f"Analyze this writing draft: '{user_day_w}'. Return JSON with keys 'score' (number), 'feedback' (string), and 'improved_version' (string)."
+                        raw_w_eval = generate_ai_response(w_eval_prompt)
+                        clean_w_eval = extract_json_safely(raw_w_eval)
+                        if clean_w_eval:
+                            res_w = json.loads(clean_w_eval)
+                            st.success(f"Score: {res_w.get('score', 80)}/100")
+                            st.markdown(f"**Feedback:** {res_w.get('feedback', '')}")
+                            st.markdown("**Improved Version:**")
+                            st.info(res_w.get('improved_version', ''))
+
+        with d5:
+            st.markdown(f"### 🗣️ Speaking Challenge (Day {selected_day})")
+            st.write("Practicing verbal pitch and crisis responses.")
+            st.text_area("Type your verbal draft response:", height=100, key=f"spk_day_{selected_day}")
+            if st.button("Submit Speaking Response", key=f"btn_spk_day_{selected_day}", use_container_width=True):
+                st.success("Speaking submission logged!")
 
     elif app_mode == "3. Error Log & Performance Review":
-        st.markdown("## 📊 Error Log & Review")
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 24px; border-radius: 16px; margin-bottom: 20px;'>
+            <h1 style='margin:0; font-size: 26px; color: white;'>Error Log & Performance Review</h1>
+            <p style='margin:5px 0 0 0; opacity:0.9;'>Tracked learning performance and historical quiz metrics.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        quiz_history = safe_fetch("quiz_results")
+        if quiz_history:
+            st.markdown("### 📊 Quiz Results History")
+            for item in quiz_history:
+                st.markdown(f"- **Category:** `{item.get('category')}` | **Score:** {item.get('score')}/{item.get('total')}")
+        else:
+            st.info("No quiz history recorded yet. Complete assessments to track your metrics.")
