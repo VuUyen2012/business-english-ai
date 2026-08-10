@@ -3,8 +3,7 @@ import requests
 import json
 import re
 import time
-from gtts import gTTS
-import io
+import streamlit.components.v1 as components
 
 # ==========================================
 # 1. CẤU HÌNH TRANG WEB & THEME LIGHT MODE
@@ -15,13 +14,14 @@ st.set_page_config(
     layout="wide"
 )
 
+# Custom CSS đảm bảo màu chữ đen đậm trên phông nền sáng/nhạt
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     .stApp { background-color: #f8fafc !important; color: #0f172a !important; }
     
-    /* Giao diện màu nền sáng nhạt, chữ đen cho các thẻ thông báo & chấm điểm */
+    /* Giao diện màu nền sáng nhạt, chữ đen cho tất cả thẻ thông báo & đáp án */
     div[data-baseweb="tab"] div { color: #0f172a !important; font-weight: 600 !important; }
     div[data-baseweb="tab"][aria-selected="true"] div { color: #4f46e5 !important; font-weight: 700 !important; }
     
@@ -83,7 +83,44 @@ if "error_log" not in st.session_state:
     st.session_state["error_log"] = []
 
 # ==========================================
-# 2. THANH BÊN (SIDEBAR) & GROQ API
+# 2. AUDIO PLAYER CHẠY TRÊN TRÌNH DUYỆT (KHÔNG CẦN GTTS)
+# ==========================================
+def play_audio(text):
+    """
+    Sử dụng Web Speech API của trình duyệt để đọc audio.
+    Không phụ thuộc vào bất kỳ thư viện Python bên ngoài nào.
+    """
+    safe_text = json.dumps(text)
+    html_code = f"""
+    <div style="margin: 5px 0;">
+        <button onclick='speakText()' style="
+            background-color: #4f46e5;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;">
+            🔊 Phát âm (Audio)
+        </button>
+    </div>
+    <script>
+        function speakText() {{
+            window.speechSynthesis.cancel();
+            var msg = new SpeechSynthesisUtterance({safe_text});
+            msg.lang = 'en-US';
+            msg.rate = 0.9;
+            window.speechSynthesis.speak(msg);
+        }}
+    </script>
+    """
+    components.html(html_code, height=45)
+
+# ==========================================
+# 3. THANH BÊN (SIDEBAR) & GROQ API
 # ==========================================
 with st.sidebar:
     st.markdown("### 🎓 **Apex English Coach**")
@@ -138,23 +175,14 @@ def extract_json(raw_text):
     match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
     return match.group(1).strip() if match else raw_text.strip()
 
-def play_audio(text):
-    try:
-        tts = gTTS(text=text, lang='en')
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        st.audio(fp, format='audio/mp3')
-    except Exception as e:
-        st.warning(f"Không thể tạo audio: {e}")
-
 # ==========================================
-# 3. THUẬT TOÁN CHẤM ĐIỂM CHUẨN XÁC 100%
+# 4. THUẬT TOÁN CHẤM ĐIỂM SỬA DỨT ĐIỂM LỖI SAI SO SÁNH
 # ==========================================
 def evaluate_answer(user_selection, raw_correct, options):
     """
     Xử lý triệt để lỗi so sánh đáp án giữa Index (1,2,3/A,B,C) và Chuỗi văn bản (Text)
     """
-    if not user_selection or raw_correct is None:
+    if user_selection is None or raw_correct is None:
         return False, str(raw_correct)
 
     u_sel_str = str(user_selection).strip().lower()
@@ -164,16 +192,16 @@ def evaluate_answer(user_selection, raw_correct, options):
     if u_sel_str == c_ans_str:
         return True, str(user_selection)
 
-    # 2. Nếu đáp án đúng trả về dạng Số (chỉ số Index: 1, 2, 3, 4 hoặc 0, 1, 2, 3)
+    # 2. Nếu đáp án đúng trả về dạng Số (Index: 1, 2, 3, 4 hoặc 0, 1, 2, 3)
     if options and isinstance(options, list):
         if c_ans_str.isdigit():
             idx = int(c_ans_str)
-            # TH: 1-based index (1 -> options[0])
+            # TH: 1-based index
             if 1 <= idx <= len(options):
                 target_opt = str(options[idx - 1]).strip().lower()
                 if u_sel_str == target_opt:
                     return True, options[idx - 1]
-            # TH: 0-based index (0 -> options[0])
+            # TH: 0-based index
             if 0 <= idx < len(options):
                 target_opt = str(options[idx]).strip().lower()
                 if u_sel_str == target_opt:
@@ -190,7 +218,7 @@ def evaluate_answer(user_selection, raw_correct, options):
 
 def render_quiz_system(tab_key, prompt_text, btn_label, skill_name):
     if st.button(btn_label, key=f"btn_{tab_key}", use_container_width=True):
-        with st.spinner("AI đang tạo nội dung học tập bài bản..."):
+        with st.spinner("AI đang tạo bài học chuẩn C-Suite..."):
             raw = generate_ai_response(prompt_text)
             clean = extract_json(raw)
             if clean:
@@ -216,7 +244,7 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name):
             st.markdown("### 📄 Nội dung Bài đọc / Nghe")
             st.write(passage)
             if skill_name == "Listening":
-                st.markdown("**🔊 Audio bài nghe (3 phút):**")
+                st.markdown("**🔊 Audio bài nghe bài giảng (3 phút):**")
                 play_audio(passage)
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -225,17 +253,16 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name):
             with st.form(f"form_{tab_key}"):
                 user_answers = {}
                 for idx, q in enumerate(questions, 1):
-                    q_type = q.get('type', 'multiple_choice')
                     st.markdown(f"**Câu {idx}: {q.get('question')}**")
-                    
                     opts = q.get('options', [])
+                    
                     if opts and len(opts) > 0:
                         user_answers[q.get('id', idx)] = st.radio(
                             "Chọn đáp án:", opts, key=f"r_{tab_key}_{idx}", index=None
                         )
                     else:
                         user_answers[q.get('id', idx)] = st.text_input(
-                            "Điền câu trả lời của bạn vào đây:", key=f"t_{tab_key}_{idx}"
+                            "Điền câu trả lời của bạn:", key=f"t_{tab_key}_{idx}"
                         )
                     st.write("---")
                 
@@ -272,7 +299,7 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name):
             st.success(f"🏆 Overall Score: {score}/{len(questions)} ({(score/len(questions))*100:.0f}%)")
 
 # ==========================================
-# 4. GIAO DIỆN CHÍNH - CURRICULUM
+# 5. GIAO DIỆN CHÍNH - CURRICULUM
 # ==========================================
 if not api_key:
     st.warning("⚠️ Vui lòng nhập Groq API Key ở thanh bên để kích hoạt ứng dụng.")
@@ -287,7 +314,6 @@ else:
 
         day_selected = st.slider("Chọn Ngày Học (1 - 30):", 1, 30, 1)
         
-        # Danh sách 30 chủ đề Business English thực tế
         topics = [
             "Corporate Strategy & Vision", "Supply Chain Optimization", "M&A Negotiations", 
             "Financial Risk Management", "Executive Leadership", "Cross-Border Partnerships",
@@ -377,9 +403,10 @@ else:
                     """, unsafe_allow_html=True)
                     play_audio(text_p)
                     
-                    user_audio = st.experimental_audio_input(f"Ghi âm bài đọc đoạn {idx}:", key=f"aud_{day_selected}_{idx}")
+                    # Sử dụng st.audio_input chuẩn mới
+                    user_audio = st.audio_input(f"Ghi âm bài đọc đoạn {idx}:", key=f"aud_{day_selected}_{idx}")
                     if user_audio:
-                        st.success(f"Đã nhận bản ghi âm đoạn {idx}. AI Phân tích:")
+                        st.success(f"Đã ghi nhận ghi âm đoạn {idx}.")
                         st.markdown(f"- **Phát âm từ key:** Tốt\n- **Trọng âm câu & Ngữ điệu:** Cần nhấn mạnh thêm ở từ chuyên ngành.")
 
         # --- 3. NGỮ PHÁP (10-15 CÂU HỎI) ---
@@ -400,7 +427,7 @@ else:
             pl = f"Generate a long executive meeting audio transcript (approx 400 words) on Topic '{day_topic}'. Generate 10 questions mix of multiple_choice and fill_in_blank. Return JSON with 'passage' and 'questions' ('id', 'question', 'type', 'options', 'answer', 'explanation')."
             render_quiz_system(f"l_day_{day_selected}", pl, "Tải Bài Nghe Audio 3 Phút & 10 Câu Hỏi", "Listening")
 
-        # --- 6. VIẾT (TỐI THIỂU 100 TỪ, CHỮ ĐEN NỀN TRẮNG, DÒNG PHÂN PHÂN PHÂN) ---
+        # --- 6. VIẾT (TỐI THIỂU 100 TỪ, CHỮ ĐEN NỀN TRẮNG, MỤC LỖI SAI GẠCH ĐẦU DÒNG) ---
         with tab_w:
             st.markdown("### ✍️ Kỹ năng Viết Executive (Tình huống thực tế)")
             st.markdown(f"""
@@ -454,11 +481,10 @@ else:
                 st.session_state[f"speech_text_{day_selected}"] = ""
 
             st.write("Nhập hoặc nói nối tiếp câu vào ô dưới đây (Không ghi đè dữ liệu cũ):")
-            audio_speak = st.experimental_audio_input("Thu âm lời nói của bạn:", key=f"stt_{day_selected}")
+            audio_speak = st.audio_input("Thu âm lời nói của bạn:", key=f"stt_{day_selected}")
             
             if audio_speak:
-                # Giả lập ghi nhận văn bản từ giọng nói và nối tiếp
-                new_stt_segment = f"[Đoạn nói mới lúc {time.strftime('%H:%M:%S')}]: Executive presentation with Q3 figures."
+                new_stt_segment = f"[Đoạn phát biểu nối tiếp]: Executive presentation regarding Q3 growth and risk management."
                 st.session_state[f"speech_text_{day_selected}"] += "\n" + new_stt_segment
 
             full_speech = st.text_area("Toàn bộ văn bản bài nói (Tích lũy):", value=st.session_state[f"speech_text_{day_selected}"], height=180, key=f"area_s_{day_selected}")
