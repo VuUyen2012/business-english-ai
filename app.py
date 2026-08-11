@@ -6,7 +6,7 @@ import time
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. PAGE CONFIG & COMPLETE HIGH-CONTRAST CSS
+# 1. PAGE CONFIG & PINK/WHITE ACCENT CSS
 # ==========================================
 st.set_page_config(
     page_title="Apex English - 30-Day Executive Coaching",
@@ -15,23 +15,23 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS khắc phục triệt để lỗi chữ trắng trên nền trắng
+# CSS khắc phục triệt để lỗi chữ trắng trên nền trắng, áp dụng nền trắng/hồng nhạt
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
-    /* 1. Global Reset & Main App Background */
+    /* 1. Global Reset & Background (Nền trắng/hồng cực nhẹ) */
     html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
         font-family: 'Inter', sans-serif !important;
-        background-color: #f8fafc !important;
+        background-color: #fff1f2 !important; /* Hồng phấn nhẹ */
         color: #0f172a !important;
     }
 
     [data-testid="stHeader"] {
-        background-color: rgba(248, 250, 252, 0.9) !important;
+        background-color: rgba(255, 241, 242, 0.9) !important;
     }
 
-    /* 2. Target Text Elements (Fix white-on-white text) */
+    /* 2. Target ALL Text Elements (Bắt buộc chữ màu tối/đen) */
     [data-testid="stMarkdownContainer"] p, 
     [data-testid="stMarkdownContainer"] span, 
     [data-testid="stMarkdownContainer"] li,
@@ -46,7 +46,17 @@ st.markdown("""
         color: #0f172a !important;
     }
 
-    /* 3. Radio Buttons & Checkboxes Labels */
+    /* FIX LỖI SYNONYM / CODE TAGS (Bắt buộc chữ đen trên nền hồng nhạt) */
+    code, pre, [data-testid="stMarkdownContainer"] code {
+        color: #9f1239 !important; /* Màu hồng đậm/đỏ đô */
+        background-color: #ffe4e6 !important; /* Nền hồng nhạt */
+        border: 1px solid #fecdd3 !important;
+        border-radius: 4px !important;
+        padding: 2px 6px !important;
+        font-weight: 600 !important;
+    }
+
+    /* 3. Radio Buttons & Checkboxes */
     div[role="radiogroup"] label p,
     div[role="radiogroup"] label span,
     div[role="radiogroup"] div,
@@ -55,25 +65,26 @@ st.markdown("""
         font-weight: 500 !important;
     }
 
-    /* 4. Text Inputs, Textareas, & Selectboxes */
+    /* 4. Inputs, Textareas, Selectboxes */
     input, textarea, select, 
     [data-baseweb="input"] input, 
-    [data-baseweb="textarea"] textarea {
+    [data-baseweb="textarea"] textarea,
+    [data-baseweb="select"] * {
         color: #0f172a !important;
         background-color: #ffffff !important;
-        border: 1px solid #cbd5e1 !important;
+        border: 1px solid #fda4af !important;
         border-radius: 6px !important;
     }
     
     ::placeholder {
-        color: #64748b !important;
-        opacity: 1 !important;
+        color: #9f1239 !important;
+        opacity: 0.7 !important;
     }
 
-    /* 5. Sidebar Styling */
+    /* 5. Sidebar Styling (Màu trắng & Viền hồng) */
     [data-testid="stSidebar"] {
         background-color: #ffffff !important;
-        border-right: 1px solid #e2e8f0 !important;
+        border-right: 1px solid #fecdd3 !important;
     }
     [data-testid="stSidebar"] * {
         color: #0f172a !important;
@@ -81,24 +92,25 @@ st.markdown("""
 
     /* 6. Tabs Styling */
     div[data-baseweb="tab"] div { 
-        color: #334155 !important; 
+        color: #881337 !important; 
         font-weight: 600 !important; 
     }
     
     div[data-baseweb="tab"][aria-selected="true"] div { 
-        color: #4f46e5 !important; 
+        color: #e11d48 !important; /* Rose Red */
         font-weight: 700 !important; 
+        border-bottom: 2px solid #e11d48 !important;
     }
 
     /* 7. Custom Card Classes */
     .apex-card {
         background-color: #ffffff !important;
-        border: 1px solid #cbd5e1 !important;
+        border: 1px solid #fecdd3 !important;
         border-radius: 12px;
         padding: 20px;
         margin-bottom: 15px;
         color: #0f172a !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        box-shadow: 0 2px 8px rgba(225, 29, 72, 0.05);
     }
     .apex-card * {
         color: #0f172a !important;
@@ -125,8 +137,8 @@ st.markdown("""
     .wrong-card * { color: #0f172a !important; }
 
     .hint-card {
-        background-color: #fefce8 !important;
-        border: 1px solid #fde047 !important;
+        background-color: #fff1f2 !important;
+        border: 1px solid #fda4af !important;
         padding: 16px;
         border-radius: 8px;
         color: #0f172a !important;
@@ -134,9 +146,9 @@ st.markdown("""
     }
     .hint-card * { color: #0f172a !important; }
 
-    /* 8. Banner Exception (White text on dark gradient) */
+    /* 8. Banner Exception (Gradient Hồng - Chữ Trắng Tương Phản) */
     .hero-banner {
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
         color: #ffffff !important;
         padding: 22px;
         border-radius: 12px;
@@ -146,13 +158,17 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* 9. Buttons */
+    /* 9. Nút Bấm (Button Gradient Hồng - Chữ Trắng) */
     .stButton>button, .stButton>button * {
-        background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
+        background: linear-gradient(135deg, #e11d48 0%, #f43f5e 100%) !important;
         color: #ffffff !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
         border: none !important;
+        box-shadow: 0 2px 4px rgba(225,29,72,0.2) !important;
+    }
+    .stButton>button:hover {
+        background: linear-gradient(135deg, #be123c 0%, #e11d48 100%) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -168,7 +184,7 @@ def play_audio(text):
     html_code = f"""
     <div style="margin: 5px 0;">
         <button onclick='speakText()' style="
-            background-color: #4f46e5;
+            background-color: #e11d48;
             color: white;
             border: none;
             padding: 6px 14px;
@@ -250,7 +266,7 @@ def extract_json(raw_text):
     return match.group(1).strip() if match else raw_text.strip()
 
 # ==========================================
-# 4. ROBUST EVALUATION FUNCTION (FIXED)
+# 4. EVALUATION FUNCTION
 # ==========================================
 def evaluate_answer(user_selection, raw_correct, options):
     if user_selection is None or raw_correct is None:
@@ -449,7 +465,7 @@ else:
                 for idx, w in enumerate(words, 1):
                     st.markdown(f"""
                     <div class="apex-card">
-                        <h4 style="color:#4f46e5 !important; margin:0;">{idx}. {w.get('word')} <span style="font-size:14px; color:#64748b !important;">/{w.get('ipa')}/</span></h4>
+                        <h4 style="color:#e11d48 !important; margin:0;">{idx}. {w.get('word')} <span style="font-size:14px; color:#9f1239 !important;">/{w.get('ipa')}/</span></h4>
                         <p style="margin:4px 0;"><b>Definition:</b> {w.get('english_def')}</p>
                         <p style="margin:4px 0;"><b>Synonyms:</b> <code>{w.get('synonyms')}</code></p>
                         <p style="margin:4px 0; font-style:italic;"><b>Executive Example:</b> "{w.get('example')}"</p>
@@ -559,7 +575,7 @@ else:
                         if f"pe_res_{day_selected}_{idx}" in st.session_state:
                             pe = st.session_state[f"pe_res_{day_selected}_{idx}"]
                             st.markdown(f"""
-                            <div class="apex-card" style="background-color: #f8fafc !important;">
+                            <div class="apex-card" style="background-color: #fff1f2 !important;">
                                 <p>🔑 <b>Key Words Pronunciation:</b> {pe.get('key_words_eval')}</p>
                                 <p>📚 <b>Vocabulary Accuracy:</b> {pe.get('vocabulary_eval')}</p>
                                 <p>🌊 <b>Intonation & Pitch Contour:</b> {pe.get('intonation_eval')}</p>
