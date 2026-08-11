@@ -32,7 +32,7 @@ st.markdown("""
         color: #0f172a !important;
     }
 
-    /* 3. TRIỆT BỎ NỀN ĐEN Ở JSON VIEWER & CODE BLOCKS (Lỗi trong ảnh) */
+    /* 3. TRIỆT BỎ NỀN ĐEN Ở JSON VIEWER & CODE BLOCKS */
     div[data-testid="stJson"], 
     div[data-testid="stJson"] *, 
     pre, code, 
@@ -187,7 +187,7 @@ def play_audio(text):
     """
     components.html(html_code, height=45)
 
-# Hàm render nội dung Lý thuyết/Theory dạng Markdown đẹp mắt thay vì xả JSON đen
+# Hàm render nội dung Lý thuyết/Theory dạng Markdown
 def render_formatted_theory(theory_data):
     if isinstance(theory_data, str):
         st.markdown(theory_data)
@@ -337,7 +337,6 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name):
         if "lesson_theory" in data:
             st.markdown('<div class="hint-card">', unsafe_allow_html=True)
             st.markdown("### 📖 English Grammar Focus & Business Usage Rule")
-            # Render theory bằng hàm custom để tránh bị dính JSON box màu đen
             render_formatted_theory(data["lesson_theory"])
             st.markdown('</div>', unsafe_allow_html=True)
         
@@ -615,7 +614,7 @@ else:
             pl = f"Generate an executive meeting briefing transcript (approx 400 words) on Topic '{day_topic}'. ALL text MUST be in 100% ENGLISH. Generate 10 questions mix of multiple_choice and fill_in_blank. Return JSON with 'passage' and 'questions' ('id', 'question', 'type', 'options', 'answer', 'explanation')."
             render_quiz_system(f"l_day_{day_selected}", pl, "Load 3-Minute Executive Audio & 10 Questions", "Listening")
 
-        # --- 6. WRITING & EVALUATION ---
+        # --- 6. WRITING & EVALUATION (CẬP NHẬT PHẦN SỬA LỖI CHI TIẾT DƯỚI ĐÂY) ---
         with tab_w:
             st.markdown(f"### ✍️ Executive Business Writing Brief: {day_topic}")
             if f"w_scenario_{day_selected}" not in st.session_state:
@@ -637,13 +636,14 @@ else:
                 word_count = len(user_writing.split())
                 st.caption(f"📊 Current Word Count: **{word_count} words** (Recommended: 100+ words)")
 
-            if st.button("Evaluate Writing & Generate Executive Feedback", key=f"btn_w_eval_{day_selected}", use_container_width=True):
+            if st.button("Evaluate Writing & Detailed Line-by-Line Corrections", key=f"btn_w_eval_{day_selected}", use_container_width=True):
                 if not user_writing or len(user_writing.strip()) < 15:
                     st.warning("⚠️ Please draft a substantial writing response (at least 15 words) before submitting for evaluation.")
                 else:
-                    with st.spinner("AI Executive Coach is assessing your writing style, tone, grammar, and strategic impact..."):
+                    with st.spinner("AI Executive Coach is identifying specific mistakes, revising line-by-line, and evaluating C-suite tone..."):
                         p_w_eval = f"""
-                        Evaluate the following C-suite executive writing submission strictly in 100% ENGLISH.
+                        Perform an in-depth line-by-line correction and C-suite assessment of the following user submission.
+                        ALL feedback MUST be strictly in 100% ENGLISH.
                         
                         Scenario context: {scenario_disp}
                         Target Grammar focus: {day_grammar}
@@ -652,11 +652,21 @@ else:
                         Return a JSON object with keys:
                         - 'overall_score': (integer from 0 to 100)
                         - 'executive_summary': (short overall critique)
-                        - 'grammar_vocabulary_score': (score out of 100 and brief comments on grammar/vocabulary)
-                        - 'structure_cohesion_score': (score out of 100 and brief comments on structure and logic)
-                        - 'tone_style_score': (score out of 100 and comments on C-suite tone & professionalism)
-                        - 'suggested_rewrite': (a polished, executive-level C1/C2 version of the user's writing)
-                        - 'actionable_improvements': (array of strings with specific actionable tips to improve)
+                        - 'grammar_vocabulary_score': (score out of 100 and brief comments)
+                        - 'structure_cohesion_score': (score out of 100 and brief comments)
+                        - 'tone_style_score': (score out of 100 and brief comments)
+                        - 'line_corrections': (array of objects for EVERY error/suboptimal phrasing in the user text:
+                            [
+                              {{
+                                "original_phrase": "exact word or phrase from user text",
+                                "corrected_phrase": "corrected version",
+                                "error_type": "Grammar / Word Choice / Tone / Punctuation",
+                                "explanation": "Detailed explanation of why it was wrong and the rule behind the fix."
+                              }}
+                            ]
+                          )
+                        - 'suggested_rewrite': (a polished, high-level executive C1/C2 model answer based on the user's ideas)
+                        - 'actionable_improvements': (array of strings with specific actionable strategic writing advice)
                         """
                         raw_we = generate_ai_response(p_w_eval)
                         clean_we = extract_json(raw_we)
@@ -699,8 +709,25 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
 
+                # PHẦN CHỈNH SỬA LỖI SAI CHI TIẾT TỪ BÀI VIẾT CỦA NGƯỜI DÙNG (LINE-BY-LINE CORRECTIONS)
+                st.markdown("#### 🛠️ Detailed Line-by-Line Corrections (Specific Error Analysis)")
+                corrections = w_res.get("line_corrections", [])
+                
+                if not corrections or len(corrections) == 0:
+                    st.info("🎉 Excellent work! No significant grammatical errors or tone issues were detected in your text.")
+                else:
+                    for idx, err in enumerate(corrections, 1):
+                        st.markdown(f"""
+                        <div class="wrong-card">
+                            <span style="background-color:#e11d48; color:white !important; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:12px;">Issue #{idx} - {err.get('error_type', 'Correction')}</span><br><br>
+                            ❌ <b>Original Text:</b> <span style="text-decoration: line-through; color:#be123c !important;">"{err.get('original_phrase')}"</span><br>
+                            ✅ <b>Correction:</b> <b style="color:#16a34a !important;">"{err.get('corrected_phrase')}"</b><br>
+                            💡 <b>Why & How to Fix:</b> {err.get('explanation')}
+                        </div>
+                        """, unsafe_allow_html=True)
+
                 st.markdown(f"""
-                <div class="correct-card">
+                <div class="correct-card" style="margin-top:20px;">
                     <h4 style="color:#16a34a !important; margin-top:0;">✨ Optimized Executive C-Suite Version (Model Answer):</h4>
                     <p style="font-size:15px; font-style:italic;">"{w_res.get('suggested_rewrite')}"</p>
                 </div>
