@@ -6,7 +6,7 @@ import time
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. PAGE CONFIG & PINK/WHITE ACCENT CSS
+# 1. PAGE CONFIG & OVERRIDE ALL DARK/BLACK ELEMENTS
 # ==========================================
 st.set_page_config(
     page_title="Apex English - 30-Day Executive Coaching",
@@ -15,60 +15,44 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS khắc phục triệt để lỗi chữ trắng trên nền trắng, áp dụng nền trắng/hồng nhạt
+# Force hoàn toàn nền Trắng / Hồng nhạt & Chữ Đen trên TẤT CẢ các component (Kể cả JSON/Code viewer)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
-    /* 1. Global Reset & Background (Nền trắng/hồng cực nhẹ) */
-    html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+    /* 1. Global Reset & Background (Nền hồng phấn nhạt) */
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"] {
         font-family: 'Inter', sans-serif !important;
-        background-color: #fff1f2 !important; /* Hồng phấn nhẹ */
+        background-color: #fff1f2 !important; /* Hồng nhạt */
+        color: #0f172a !important; /* Chữ đen đậm */
+    }
+
+    /* 2. ÉP TẤT CẢ CHỮ VỀ MÀU ĐEN / TỐI */
+    *, p, span, h1, h2, h3, h4, h5, h6, li, label, div {
         color: #0f172a !important;
     }
 
-    [data-testid="stHeader"] {
-        background-color: rgba(255, 241, 242, 0.9) !important;
-    }
-
-    /* 2. Target ALL Text Elements (Bắt buộc chữ màu tối/đen) */
-    [data-testid="stMarkdownContainer"] p, 
-    [data-testid="stMarkdownContainer"] span, 
-    [data-testid="stMarkdownContainer"] li,
-    [data-testid="stMarkdownContainer"] h1,
-    [data-testid="stMarkdownContainer"] h2,
-    [data-testid="stMarkdownContainer"] h3,
-    [data-testid="stMarkdownContainer"] h4,
-    [data-testid="stWidgetLabel"] p,
-    [data-testid="stWidgetLabel"] span,
-    [data-testid="stWidgetLabel"],
-    label, p, span, h1, h2, h3, h4, h5, h6, li {
-        color: #0f172a !important;
-    }
-
-    /* FIX LỖI SYNONYM / CODE TAGS (Bắt buộc chữ đen trên nền hồng nhạt) */
-    code, pre, [data-testid="stMarkdownContainer"] code {
-        color: #9f1239 !important; /* Màu hồng đậm/đỏ đô */
-        background-color: #ffe4e6 !important; /* Nền hồng nhạt */
-        border: 1px solid #fecdd3 !important;
-        border-radius: 4px !important;
-        padding: 2px 6px !important;
+    /* 3. TRIỆT BỎ NỀN ĐEN Ở JSON VIEWER & CODE BLOCKS (Lỗi trong ảnh) */
+    div[data-testid="stJson"], 
+    div[data-testid="stJson"] *, 
+    pre, code, 
+    [data-testid="stMarkdownContainer"] code,
+    .stCodeBlock,
+    [data-baseweb="tree-node"] {
+        background-color: #ffe4e6 !important; /* Nền hồng pastel nhạt */
+        color: #0f172a !important; /* Chữ đen/đỏ đô đậm */
+        border: 1px solid #fda4af !important;
+        border-radius: 8px !important;
+        font-family: 'Inter', monospace !important;
         font-weight: 600 !important;
     }
 
-    /* 3. Radio Buttons & Checkboxes */
-    div[role="radiogroup"] label p,
-    div[role="radiogroup"] label span,
-    div[role="radiogroup"] div,
-    [data-testid="stRadioButton"] label p {
-        color: #0f172a !important;
-        font-weight: 500 !important;
-    }
-
-    /* 4. Inputs, Textareas, Selectboxes */
+    /* 4. Fix các Input, Textarea, Selectbox (Tránh bị đen/tối) */
     input, textarea, select, 
+    [data-baseweb="input"],
     [data-baseweb="input"] input, 
     [data-baseweb="textarea"] textarea,
+    [data-baseweb="select"],
     [data-baseweb="select"] * {
         color: #0f172a !important;
         background-color: #ffffff !important;
@@ -78,38 +62,36 @@ st.markdown("""
     
     ::placeholder {
         color: #9f1239 !important;
-        opacity: 0.7 !important;
+        opacity: 0.6 !important;
     }
 
-    /* 5. Sidebar Styling (Màu trắng & Viền hồng) */
-    [data-testid="stSidebar"] {
+    /* 5. Sidebar (Nền trắng, viền hồng nhạt) */
+    [data-testid="stSidebar"], [data-testid="stSidebar"] * {
         background-color: #ffffff !important;
-        border-right: 1px solid #fecdd3 !important;
-    }
-    [data-testid="stSidebar"] * {
         color: #0f172a !important;
     }
+    [data-testid="stSidebar"] {
+        border-right: 2px solid #fecdd3 !important;
+    }
 
-    /* 6. Tabs Styling */
+    /* 6. Tabs (Nhãn tab hồng đậm/đỏ) */
     div[data-baseweb="tab"] div { 
         color: #881337 !important; 
         font-weight: 600 !important; 
     }
-    
     div[data-baseweb="tab"][aria-selected="true"] div { 
-        color: #e11d48 !important; /* Rose Red */
+        color: #e11d48 !important; 
         font-weight: 700 !important; 
-        border-bottom: 2px solid #e11d48 !important;
+        border-bottom: 3px solid #e11d48 !important;
     }
 
-    /* 7. Custom Card Classes */
+    /* 7. Custom Cards (Chắc chắn Nền Trắng/Hồng - Chữ Đen) */
     .apex-card {
         background-color: #ffffff !important;
         border: 1px solid #fecdd3 !important;
         border-radius: 12px;
         padding: 20px;
         margin-bottom: 15px;
-        color: #0f172a !important;
         box-shadow: 0 2px 8px rgba(225, 29, 72, 0.05);
     }
     .apex-card * {
@@ -122,7 +104,6 @@ st.markdown("""
         padding: 14px; 
         margin-top: 8px; 
         border-radius: 6px;
-        color: #0f172a !important;
     }
     .correct-card * { color: #0f172a !important; }
     
@@ -132,33 +113,30 @@ st.markdown("""
         padding: 14px; 
         margin-top: 8px; 
         border-radius: 6px;
-        color: #0f172a !important;
     }
     .wrong-card * { color: #0f172a !important; }
 
     .hint-card {
-        background-color: #fff1f2 !important;
-        border: 1px solid #fda4af !important;
-        padding: 16px;
-        border-radius: 8px;
-        color: #0f172a !important;
-        margin-bottom: 12px;
+        background-color: #ffffff !important;
+        border: 1.5px solid #fda4af !important;
+        padding: 18px;
+        border-radius: 10px;
+        margin-bottom: 15px;
     }
     .hint-card * { color: #0f172a !important; }
 
-    /* 8. Banner Exception (Gradient Hồng - Chữ Trắng Tương Phản) */
+    /* 8. Hero Banner (Nền Hồng Đậm - Chữ Trắng Tương Phản) */
     .hero-banner {
         background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
-        color: #ffffff !important;
         padding: 22px;
         border-radius: 12px;
         margin-bottom: 20px;
     }
-    .hero-banner * {
+    .hero-banner h2, .hero-banner p, .hero-banner b {
         color: #ffffff !important;
     }
 
-    /* 9. Nút Bấm (Button Gradient Hồng - Chữ Trắng) */
+    /* 9. Nút bấm Button */
     .stButton>button, .stButton>button * {
         background: linear-gradient(135deg, #e11d48 0%, #f43f5e 100%) !important;
         color: #ffffff !important;
@@ -208,6 +186,32 @@ def play_audio(text):
     </script>
     """
     components.html(html_code, height=45)
+
+# Hàm render nội dung Lý thuyết/Theory dạng Markdown đẹp mắt thay vì xả JSON đen
+def render_formatted_theory(theory_data):
+    if isinstance(theory_data, str):
+        st.markdown(theory_data)
+    elif isinstance(theory_data, dict):
+        for key, value in theory_data.items():
+            title = key.replace('_', ' ').title()
+            st.markdown(f"#### 📌 **{title}**")
+            if isinstance(value, dict):
+                for sub_k, sub_v in value.items():
+                    sub_title = sub_k.replace('_', ' ').title()
+                    if isinstance(sub_v, list):
+                        st.markdown(f"**{sub_title}:**")
+                        for item in sub_v:
+                            st.markdown(f"- {item}")
+                    else:
+                        st.markdown(f"**{sub_title}:** {sub_v}")
+            elif isinstance(value, list):
+                for item in value:
+                    st.markdown(f"- {item}")
+            else:
+                st.write(value)
+            st.write("")
+    else:
+        st.write(str(theory_data))
 
 # ==========================================
 # 3. SIDEBAR & GROQ ENGINE
@@ -266,7 +270,7 @@ def extract_json(raw_text):
     return match.group(1).strip() if match else raw_text.strip()
 
 # ==========================================
-# 4. EVALUATION FUNCTION
+# 4. EVALUATION & QUIZ SYSTEM
 # ==========================================
 def evaluate_answer(user_selection, raw_correct, options):
     if user_selection is None or raw_correct is None:
@@ -333,7 +337,8 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name):
         if "lesson_theory" in data:
             st.markdown('<div class="hint-card">', unsafe_allow_html=True)
             st.markdown("### 📖 English Grammar Focus & Business Usage Rule")
-            st.write(data["lesson_theory"])
+            # Render theory bằng hàm custom để tránh bị dính JSON box màu đen
+            render_formatted_theory(data["lesson_theory"])
             st.markdown('</div>', unsafe_allow_html=True)
         
         passage = data.get("passage", "")
@@ -467,7 +472,7 @@ else:
                     <div class="apex-card">
                         <h4 style="color:#e11d48 !important; margin:0;">{idx}. {w.get('word')} <span style="font-size:14px; color:#9f1239 !important;">/{w.get('ipa')}/</span></h4>
                         <p style="margin:4px 0;"><b>Definition:</b> {w.get('english_def')}</p>
-                        <p style="margin:4px 0;"><b>Synonyms:</b> <code>{w.get('synonyms')}</code></p>
+                        <p style="margin:4px 0;"><b>Synonyms:</b> <code style="background-color:#ffe4e6 !important; color:#0f172a !important;">{w.get('synonyms')}</code></p>
                         <p style="margin:4px 0; font-style:italic;"><b>Executive Example:</b> "{w.get('example')}"</p>
                     </div>
                     """, unsafe_allow_html=True)
@@ -685,7 +690,7 @@ else:
 
     elif app_mode == "3. Error Log & Remind Review":
         st.markdown("""
-        <div class="hero-banner" style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);">
+        <div class="hero-banner">
             <h2 style='margin:0;'>Review & Remind: Incorrect Answer History</h2>
             <p style='margin:5px 0 0 0;'>Review logged mistakes to reinforce business English mastery</p>
         </div>
