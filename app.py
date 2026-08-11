@@ -6,7 +6,7 @@ import time
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. PAGE CONFIG & FIX BLANK/DARK SCREEN CSS
+# 1. PAGE CONFIG & COMPLETE HIGH-CONTRAST CSS
 # ==========================================
 st.set_page_config(
     page_title="Apex English - 30-Day Executive Coaching",
@@ -15,29 +15,73 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Sửa lỗi màn hình đen: Sử dụng bộ CSS ổn định tương thích hoàn hảo với Streamlit Cloud
+# CSS khắc phục triệt để lỗi chữ trắng trên nền trắng
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
-    /* Global reset to prevent blank/black render */
-    html, body, [data-testid="stAppViewContainer"] {
+    /* 1. Global Reset & Main App Background */
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
         font-family: 'Inter', sans-serif !important;
         background-color: #f8fafc !important;
         color: #0f172a !important;
     }
 
     [data-testid="stHeader"] {
-        background-color: rgba(248, 250, 252, 0.8) !important;
+        background-color: rgba(248, 250, 252, 0.9) !important;
     }
 
+    /* 2. Target Text Elements (Fix white-on-white text) */
+    [data-testid="stMarkdownContainer"] p, 
+    [data-testid="stMarkdownContainer"] span, 
+    [data-testid="stMarkdownContainer"] li,
+    [data-testid="stMarkdownContainer"] h1,
+    [data-testid="stMarkdownContainer"] h2,
+    [data-testid="stMarkdownContainer"] h3,
+    [data-testid="stMarkdownContainer"] h4,
+    [data-testid="stWidgetLabel"] p,
+    [data-testid="stWidgetLabel"] span,
+    [data-testid="stWidgetLabel"],
+    label, p, span, h1, h2, h3, h4, h5, h6, li {
+        color: #0f172a !important;
+    }
+
+    /* 3. Radio Buttons & Checkboxes Labels */
+    div[role="radiogroup"] label p,
+    div[role="radiogroup"] label span,
+    div[role="radiogroup"] div,
+    [data-testid="stRadioButton"] label p {
+        color: #0f172a !important;
+        font-weight: 500 !important;
+    }
+
+    /* 4. Text Inputs, Textareas, & Selectboxes */
+    input, textarea, select, 
+    [data-baseweb="input"] input, 
+    [data-baseweb="textarea"] textarea {
+        color: #0f172a !important;
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 6px !important;
+    }
+    
+    ::placeholder {
+        color: #64748b !important;
+        opacity: 1 !important;
+    }
+
+    /* 5. Sidebar Styling */
     [data-testid="stSidebar"] {
         background-color: #ffffff !important;
         border-right: 1px solid #e2e8f0 !important;
     }
-    
+    [data-testid="stSidebar"] * {
+        color: #0f172a !important;
+    }
+
+    /* 6. Tabs Styling */
     div[data-baseweb="tab"] div { 
-        color: #0f172a !important; 
+        color: #334155 !important; 
         font-weight: 600 !important; 
     }
     
@@ -45,7 +89,8 @@ st.markdown("""
         color: #4f46e5 !important; 
         font-weight: 700 !important; 
     }
-    
+
+    /* 7. Custom Card Classes */
     .apex-card {
         background-color: #ffffff !important;
         border: 1px solid #cbd5e1 !important;
@@ -54,6 +99,9 @@ st.markdown("""
         margin-bottom: 15px;
         color: #0f172a !important;
         box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .apex-card * {
+        color: #0f172a !important;
     }
     
     .correct-card { 
@@ -64,6 +112,7 @@ st.markdown("""
         border-radius: 6px;
         color: #0f172a !important;
     }
+    .correct-card * { color: #0f172a !important; }
     
     .wrong-card { 
         background-color: #fff1f2 !important; 
@@ -73,6 +122,7 @@ st.markdown("""
         border-radius: 6px;
         color: #0f172a !important;
     }
+    .wrong-card * { color: #0f172a !important; }
 
     .hint-card {
         background-color: #fefce8 !important;
@@ -82,8 +132,22 @@ st.markdown("""
         color: #0f172a !important;
         margin-bottom: 12px;
     }
-    
-    .stButton>button {
+    .hint-card * { color: #0f172a !important; }
+
+    /* 8. Banner Exception (White text on dark gradient) */
+    .hero-banner {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        color: #ffffff !important;
+        padding: 22px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+    }
+    .hero-banner * {
+        color: #ffffff !important;
+    }
+
+    /* 9. Buttons */
+    .stButton>button, .stButton>button * {
         background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
         color: #ffffff !important;
         border-radius: 8px !important;
@@ -186,7 +250,7 @@ def extract_json(raw_text):
     return match.group(1).strip() if match else raw_text.strip()
 
 # ==========================================
-# 4. ROBUST QUIZ EVALUATION (SỬA LỖI ĐÁP ÁN SAI)
+# 4. ROBUST EVALUATION FUNCTION (FIXED)
 # ==========================================
 def evaluate_answer(user_selection, raw_correct, options):
     if user_selection is None or raw_correct is None:
@@ -324,8 +388,8 @@ if not api_key:
 else:
     if app_mode == "2. 30-Day Executive Curriculum":
         st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 22px; border-radius: 12px; margin-bottom: 20px;'>
-            <h2 style='margin:0; color:white;'>30-Day Executive Business English Curriculum</h2>
+        <div class="hero-banner">
+            <h2 style='margin:0;'>30-Day Executive Business English Curriculum</h2>
             <p style='margin:5px 0 0 0;'>Current Level: <b>{current_level}</b> ➔ Target Level: <b>{target_level}</b></p>
         </div>
         """, unsafe_allow_html=True)
@@ -385,7 +449,7 @@ else:
                 for idx, w in enumerate(words, 1):
                     st.markdown(f"""
                     <div class="apex-card">
-                        <h4 style="color:#4f46e5; margin:0;">{idx}. {w.get('word')} <span style="font-size:14px; color:#64748b;">/{w.get('ipa')}/</span></h4>
+                        <h4 style="color:#4f46e5 !important; margin:0;">{idx}. {w.get('word')} <span style="font-size:14px; color:#64748b !important;">/{w.get('ipa')}/</span></h4>
                         <p style="margin:4px 0;"><b>Definition:</b> {w.get('english_def')}</p>
                         <p style="margin:4px 0;"><b>Synonyms:</b> <code>{w.get('synonyms')}</code></p>
                         <p style="margin:4px 0; font-style:italic;"><b>Executive Example:</b> "{w.get('example')}"</p>
@@ -501,7 +565,7 @@ else:
                                 <p>🌊 <b>Intonation & Pitch Contour:</b> {pe.get('intonation_eval')}</p>
                                 <p>🎯 <b>Sentence Stress & Cadence:</b> {pe.get('sentence_stress_eval')}</p>
                                 <hr style="margin:10px 0;">
-                                <p style="color:#e11d48; font-weight:bold; margin-bottom:5px;">⚠️ List of Specific Mispronunciations & Areas to Improve:</p>
+                                <p style="color:#e11d48 !important; font-weight:bold; margin-bottom:5px;">⚠️ List of Specific Mispronunciations & Areas to Improve:</p>
                             """, unsafe_allow_html=True)
                             
                             imps = pe.get('improvements', [])
@@ -547,7 +611,7 @@ else:
             
             user_w_text = st.text_area("Draft your executive proposal/report below:", height=240, key=f"w_input_{day_selected}")
             w_count = len(user_w_text.split())
-            st.caption(f"Current Word Count: **{w_count} words** (Requirement: $\ge 100$ words)")
+            st.caption(f"Current Word Count: **{w_count} words** (Requirement: ≥ 100 words)")
 
             if st.button("Submit & Evaluate Executive Writing", key=f"btn_w_{day_selected}", use_container_width=True):
                 if w_count < 100:
@@ -605,8 +669,8 @@ else:
 
     elif app_mode == "3. Error Log & Remind Review":
         st.markdown("""
-        <div style='background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: white; padding: 22px; border-radius: 12px; margin-bottom: 20px;'>
-            <h2 style='margin:0; color:white;'>Review & Remind: Incorrect Answer History</h2>
+        <div class="hero-banner" style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);">
+            <h2 style='margin:0;'>Review & Remind: Incorrect Answer History</h2>
             <p style='margin:5px 0 0 0;'>Review logged mistakes to reinforce business English mastery</p>
         </div>
         """, unsafe_allow_html=True)
@@ -620,8 +684,8 @@ else:
                 st.markdown(f"""
                 <div class="wrong-card">
                     <b>#{idx} [{err.get('skill')}]</b> - Question: {err.get('question')}<br>
-                    - Selected Answer: <span style="color:#e11d48; font-weight:bold;">{err.get('your_answer')}</span><br>
-                    - Correct Answer: <span style="color:#16a34a; font-weight:bold;">{err.get('correct_answer')}</span><br>
+                    - Selected Answer: <span style="color:#e11d48 !important; font-weight:bold;">{err.get('your_answer')}</span><br>
+                    - Correct Answer: <span style="color:#16a34a !important; font-weight:bold;">{err.get('correct_answer')}</span><br>
                     - 💡 <i>Explanation: {err.get('explanation')}</i>
                 </div>
                 """, unsafe_allow_html=True)
