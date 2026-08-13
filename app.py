@@ -3,7 +3,47 @@ import requests
 import json
 import re
 import time
+import os
 import streamlit.components.v1 as components
+
+# ==========================================
+# 0. PERSISTENT STORAGE (SAVE / LOAD SYSTEM)
+# ==========================================
+SAVE_FILE = "apex_app_save_data.json"
+
+def load_saved_data():
+    """Tải dữ liệu đã lưu từ file JSON vào session_state."""
+    if os.path.exists(SAVE_FILE):
+        try:
+            with open(SAVE_FILE, "r", encoding="utf-8") as f:
+                saved_state = json.load(f)
+                for key, value in saved_state.items():
+                    st.session_state[key] = value
+            return True
+        except Exception as e:
+            st.error(f"Error loading saved data: {e}")
+            return False
+    return False
+
+def save_data_to_file():
+    """Chỉ lưu các dữ liệu cần thiết từ session_state vào file JSON khi người dùng bấm nút Save."""
+    try:
+        data_to_save = {}
+        # Lưu các dữ liệu bài học, kết quả, log lỗi
+        for key, val in st.session_state.items():
+            # Lọc lưu các dữ liệu bài tập, kết quả và error_log
+            if (key.startswith(("v_data_", "g_data_", "p_passages_", "pe_res_", 
+                                "w_scenario_", "w_eval_", "s_prompt_", "s_eval_", 
+                                "g_day_", "r_day_", "l_day_")) 
+                or key in ["error_log", "diagnostic_data"]):
+                data_to_save[key] = val
+        
+        with open(SAVE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data_to_save, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        st.error(f"Error saving data: {e}")
+        return False
 
 # ==========================================
 # 1. PAGE CONFIG & OVERRIDE ALL DARK/BLACK ELEMENTS
@@ -15,7 +55,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Force hoàn toàn nền Trắng / Hồng nhạt & Chữ Đen trên TẤT CẢ các component (Kể cả JSON/Code viewer)
+# Tự động load dữ liệu đã lưu khi ứng dụng khởi chạy lần đầu
+if "data_loaded" not in st.session_state:
+    load_saved_data()
+    st.session_state["data_loaded"] = True
+
+# Styling CSS
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -85,7 +130,7 @@ st.markdown("""
         border-bottom: 3px solid #e11d48 !important;
     }
 
-    /* 7. Custom Cards (Chắc chắn Nền Trắng/Hồng - Chữ Đen) */
+    /* 7. Custom Cards */
     .apex-card {
         background-color: #ffffff !important;
         border: 1px solid #fecdd3 !important;
@@ -125,7 +170,7 @@ st.markdown("""
     }
     .hint-card * { color: #0f172a !important; }
 
-    /* 8. Hero Banner (Nền Hồng Đậm - Chữ Trắng Tương Phản) */
+    /* 8. Hero Banner */
     .hero-banner {
         background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
         padding: 22px;
@@ -155,7 +200,7 @@ if "error_log" not in st.session_state:
     st.session_state["error_log"] = []
 
 # ==========================================
-# 2. AUDIO PLAYER
+# 2. AUDIO PLAYER & HELPERS
 # ==========================================
 def play_audio(text):
     safe_text = json.dumps(text)
@@ -187,7 +232,6 @@ def play_audio(text):
     """
     components.html(html_code, height=45)
 
-# Hàm render nội dung Lý thuyết/Theory dạng Markdown
 def render_formatted_theory(theory_data):
     if isinstance(theory_data, str):
         st.markdown(theory_data)
@@ -223,6 +267,21 @@ with st.sidebar:
     default_groq_key = st.secrets.get("GROQ_API_KEY", "")
     api_key = st.text_input("Groq API Key:", value=default_groq_key, type="password")
     
+    st.divider()
+    
+    # BỔ SUNG NÚT SAVE & LOAD TRÊN STREAMLIT
+    st.markdown("### 💾 **Save & Progress**")
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        if st.button("💾 Save Progress", use_container_width=True):
+            if save_data_to_file():
+                st.toast("✅ Saved progress successfully!", icon="💾")
+    with col_s2:
+        if st.button("🔄 Reload Saved", use_container_width=True):
+            if load_saved_data():
+                st.toast("🔄 Reloaded saved data!", icon="✅")
+                st.rerun()
+
     st.divider()
     app_mode = st.radio("Navigation", [
         "1. Comprehensive Diagnostic Assessment",
@@ -406,7 +465,18 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name):
 if not api_key:
     st.warning("⚠️ Please input your Groq API Key in the sidebar to activate the program.")
 else:
-    if app_mode == "2. 30-Day Executive Curriculum":
+    if app_mode == "1. Comprehensive Diagnostic Assessment":
+        st.markdown("""
+        <div class="hero-banner">
+            <h2 style='margin:0;'>Comprehensive Diagnostic Assessment</h2>
+            <p style='margin:5px 0 0 0;'>Identify your current Executive English baseline proficiency.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        pdia = "Generate a full baseline Executive Assessment test. Return JSON with key 'questions' containing 10 questions across grammar, vocabulary, reading comprehension, and business scenario evaluation."
+        render_quiz_system("diagnostic", pdia, "Start Comprehensive Assessment", "Diagnostic")
+
+    elif app_mode == "2. 30-Day Executive Curriculum":
         st.markdown(f"""
         <div class="hero-banner">
             <h2 style='margin:0;'>30-Day Executive Business English Curriculum</h2>
@@ -627,289 +697,110 @@ else:
                             st.session_state[f"w_scenario_{day_selected}"] = json.loads(clean_ws).get("scenario_text", "")
 
             scenario_disp = st.session_state.get(f"w_scenario_{day_selected}", "Click the button above to generate a detailed, company-specific corporate scenario.")
-            st.markdown(f'<div class="apex-card"><b>Corporate Writing Scenario Briefing:</b><br>{scenario_disp}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="apex-card"><b>Corporate Scenario Brief:</b><br>{scenario_disp}</div>', unsafe_allow_html=True)
 
-            st.markdown(f"#### 📝 Draft Your Executive Writing Response (Target Grammar: *{day_grammar}*)")
-            user_writing = st.text_area("Type your C-suite proposal / email response here:", height=220, key=f"txt_w_{day_selected}")
+            user_writing = st.text_area("Write your C-suite Proposal / Response here (Min 100 words):", height=200, key=f"ta_w_{day_selected}")
 
-            if user_writing:
-                word_count = len(user_writing.split())
-                st.caption(f"📊 Current Word Count: **{word_count} words** (Recommended: 100+ words)")
-
-            if st.button("Evaluate Writing & Detailed Line-by-Line Corrections", key=f"btn_w_eval_{day_selected}", use_container_width=True):
-                if not user_writing or len(user_writing.strip()) < 15:
-                    st.warning("⚠️ Please draft a substantial writing response (at least 15 words) before submitting for evaluation.")
+            if st.button("Submit Executive Writing for AI Assessment", key=f"btn_sub_w_{day_selected}"):
+                if len(user_writing.split()) < 20:
+                    st.warning("Please enter a more detailed response before evaluation.")
                 else:
-                    with st.spinner("AI Executive Coach is identifying specific mistakes, revising line-by-line, and evaluating C-suite tone..."):
-                        p_w_eval = f"""
-                        Perform an in-depth line-by-line correction and C-suite assessment of the following user submission.
-                        ALL feedback MUST be strictly in 100% ENGLISH.
-                        
-                        Scenario context: {scenario_disp}
-                        Target Grammar focus: {day_grammar}
-                        User Submission: "{user_writing}"
-
-                        Return a JSON object with keys:
-                        - 'overall_score': (integer from 0 to 100)
-                        - 'executive_summary': (short overall critique)
-                        - 'grammar_vocabulary_score': (score out of 100 and brief comments)
-                        - 'structure_cohesion_score': (score out of 100 and brief comments)
-                        - 'tone_style_score': (score out of 100 and brief comments)
-                        - 'line_corrections': (array of objects for EVERY error/suboptimal phrasing in the user text:
-                            [
-                              {{
-                                "original_phrase": "exact word or phrase from user text",
-                                "corrected_phrase": "corrected version",
-                                "error_type": "Grammar / Word Choice / Tone / Punctuation",
-                                "explanation": "Detailed explanation of why it was wrong and the rule behind the fix."
-                              }}
-                            ]
-                          )
-                        - 'suggested_rewrite': (a polished, high-level executive C1/C2 model answer based on the user's ideas)
-                        - 'actionable_improvements': (array of strings with specific actionable strategic writing advice)
-                        """
-                        raw_we = generate_ai_response(p_w_eval)
+                    with st.spinner("Evaluating tone, impact, vocabulary, and grammar in English..."):
+                        p_eval_w = f"Evaluate writing for scenario: '{scenario_disp}'. User Writing: '{user_writing}'. ALL feedback MUST be strictly in 100% ENGLISH. Return JSON with keys: 'overall_score' (scale 1-100), 'executive_tone_analysis', 'grammar_corrections' (array of strings), 'vocabulary_enhancements' (array of strings), 'rewritten_csuite_version'."
+                        raw_we = generate_ai_response(p_eval_w)
                         clean_we = extract_json(raw_we)
                         if clean_we:
-                            try:
-                                st.session_state[f"w_eval_res_{day_selected}"] = json.loads(clean_we)
-                            except Exception as e:
-                                st.error(f"Error parsing evaluation response: {e}")
+                            st.session_state[f"w_eval_{day_selected}"] = json.loads(clean_we)
 
-            if f"w_eval_res_{day_selected}" in st.session_state:
-                w_res = st.session_state[f"w_eval_res_{day_selected}"]
-                st.divider()
-                st.markdown("### 📊 Executive Writing Feedback & Scoring Dashboard")
+            if f"w_eval_{day_selected}" in st.session_state:
+                we = st.session_state[f"w_eval_{day_selected}"]
+                st.markdown(f"""
+                <div class="apex-card">
+                    <h3>📈 AI Executive Writing Feedback</h3>
+                    <h4>Overall Score: <span style="color:#e11d48;">{we.get('overall_score')}/100</span></h4>
+                    <p><b>Executive Tone & Strategic Impact:</b> {we.get('executive_tone_analysis')}</p>
+                    <hr>
+                    <h5>⚠️ Grammar & Precision Corrections:</h5>
+                """, unsafe_allow_html=True)
+                for g_c in we.get('grammar_corrections', []):
+                    st.markdown(f"- {g_c}")
                 
-                score_val = w_res.get('overall_score', 0)
-                st.success(f"🏆 **Overall Writing Score: {score_val} / 100**")
-                
-                st.markdown(f'<div class="hint-card"><b>Executive Critique:</b> {w_res.get("executive_summary")}</div>', unsafe_allow_html=True)
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.markdown(f"""
-                    <div class="apex-card">
-                        <h5>📐 Grammar & Vocab</h5>
-                        <p>{w_res.get('grammar_vocabulary_score')}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                with col2:
-                    st.markdown(f"""
-                    <div class="apex-card">
-                        <h5>🧩 Structure & Logic</h5>
-                        <p>{w_res.get('structure_cohesion_score')}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                with col3:
-                    st.markdown(f"""
-                    <div class="apex-card">
-                        <h5>💼 C-Suite Tone</h5>
-                        <p>{w_res.get('tone_style_score')}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                st.markdown("#### 🛠️ Detailed Line-by-Line Corrections (Specific Error Analysis)")
-                corrections = w_res.get("line_corrections", [])
-                
-                if not corrections or len(corrections) == 0:
-                    st.info("🎉 Excellent work! No significant grammatical errors or tone issues were detected in your text.")
-                else:
-                    for idx, err in enumerate(corrections, 1):
-                        st.markdown(f"""
-                        <div class="wrong-card">
-                            <span style="background-color:#e11d48; color:white !important; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:12px;">Issue #{idx} - {err.get('error_type', 'Correction')}</span><br><br>
-                            ❌ <b>Original Text:</b> <span style="text-decoration: line-through; color:#be123c !important;">"{err.get('original_phrase')}"</span><br>
-                            ✅ <b>Correction:</b> <b style="color:#16a34a !important;">"{err.get('corrected_phrase')}"</b><br>
-                            💡 <b>Why & How to Fix:</b> {err.get('explanation')}
-                        </div>
-                        """, unsafe_allow_html=True)
+                st.markdown("<h5>💡 C-Suite Vocabulary Enhancements:</h5>", unsafe_allow_html=True)
+                for v_e in we.get('vocabulary_enhancements', []):
+                    st.markdown(f"- {v_e}")
 
                 st.markdown(f"""
-                <div class="correct-card" style="margin-top:20px;">
-                    <h4 style="color:#16a34a !important; margin-top:0;">✨ Optimized Executive C-Suite Version (Model Answer):</h4>
-                    <p style="font-size:15px; font-style:italic;">"{w_res.get('suggested_rewrite')}"</p>
+                    <hr>
+                    <h5>🌟 Polished C-Suite Recommendation Version:</h5>
+                    <div class="hint-card"><i>"{we.get('rewritten_csuite_version')}"</i></div>
                 </div>
                 """, unsafe_allow_html=True)
 
-                st.markdown("#### 🎯 Key Actionable Recommendations:")
-                tips = w_res.get('actionable_improvements', [])
-                if isinstance(tips, list):
-                    for tip in tips:
-                        st.markdown(f"- {tip}")
-                else:
-                    st.write(f"- {tips}")
-
-        # --- 7. SPEAKING (CẬP NHẬT HOÀN CHỈNH TÍNH NĂNG SPEAKING & SPEECH-TO-TEXT & CHẤM ĐIỂM) ---
+        # --- 7. SPEAKING ---
         with tab_s:
-            st.markdown(f"### 💬 Data-Driven Speaking Briefing: {day_topic}")
-            st.caption(f"🎯 Targeted Grammar Focus: **{day_grammar}**")
-
-            # 1. TẠO CHỦ ĐỀ VÀ TÌNH HUỐNG NÓI (SPEAKING PROMPT / SCENARIO)
+            st.markdown(f"### 💬 Executive Speaking Scenario: {day_topic}")
             if f"s_prompt_{day_selected}" not in st.session_state:
-                if st.button("Generate Executive Speaking Prompt & Questions", key=f"btn_s_gen_{day_selected}", use_container_width=True):
-                    with st.spinner("Preparing executive board presentation challenge in English..."):
-                        p_s_gen = f"""
-                        Generate an executive-level C-Suite Speaking Briefing for Day {day_selected} Topic '{day_topic}'.
-                        Grammar focus: '{day_grammar}'.
-                        ALL text MUST be strictly in 100% ENGLISH.
-                        
-                        Return JSON object with keys:
-                        - 'presentation_context': (A realistic corporate briefing/board meeting scenario, 2-3 sentences)
-                        - 'key_questions': (An array of 3 strategic questions the executive must answer aloud)
-                        - 'expected_key_terms': (An array of 5 C-suite key vocabulary terms to use in the speech)
-                        """
-                        raw_sp = generate_ai_response(p_s_gen)
+                if st.button("Generate C-Suite Boardroom Speaking Prompt", key=f"btn_s_gen_{day_selected}"):
+                    with st.spinner("Generating executive discussion prompt in English..."):
+                        ps_prompt = f"Create a high-stakes board meeting discussion prompt for Topic '{day_topic}'. ALL text MUST be in ENGLISH. Return JSON with key 'speaking_prompt'."
+                        raw_sp = generate_ai_response(ps_prompt)
                         clean_sp = extract_json(raw_sp)
                         if clean_sp:
-                            try:
-                                st.session_state[f"s_prompt_{day_selected}"] = json.loads(clean_sp)
-                            except Exception as e:
-                                st.error(f"Error loading speaking prompt: {e}")
+                            st.session_state[f"s_prompt_{day_selected}"] = json.loads(clean_sp).get("speaking_prompt", "")
 
-            s_data = st.session_state.get(f"s_prompt_{day_selected}", None)
+            s_prompt_disp = st.session_state.get(f"s_prompt_{day_selected}", "Click the button above to generate a boardroom discussion challenge.")
+            st.markdown(f'<div class="apex-card"><b>Boardroom Prompt:</b><br>{s_prompt_disp}</div>', unsafe_allow_html=True)
 
-            if s_data:
+            user_s_audio = st.audio_input("Record your C-Suite verbal response:", key=f"s_aud_{day_selected}")
+            
+            if user_s_audio:
+                st.success("Audio recorded! Click below to analyze your verbal delivery.")
+                if st.button("Evaluate Speaking Delivery & Rhetoric", key=f"btn_s_eval_{day_selected}"):
+                    with st.spinner("Analyzing rhetoric, structure, clarity, and tone in English..."):
+                        p_eval_s = f"Evaluate executive verbal pitch for prompt: '{s_prompt_disp}'. ALL feedback MUST be strictly in 100% ENGLISH. Return JSON with keys: 'delivery_score' (1-100), 'fluency_rhetoric_feedback', 'key_strengths', 'areas_for_improvement' (array of strings)."
+                        raw_se = generate_ai_response(p_eval_s)
+                        clean_se = extract_json(raw_se)
+                        if clean_se:
+                            st.session_state[f"s_eval_{day_selected}"] = json.loads(clean_se)
+
+            if f"s_eval_{day_selected}" in st.session_state:
+                se = st.session_state[f"s_eval_{day_selected}"]
                 st.markdown(f"""
                 <div class="apex-card">
-                    <h4 style="color:#e11d48 !important; margin-top:0;">📋 Executive Board Presentation Scenario</h4>
-                    <p style="font-size:15px;">{s_data.get('presentation_context')}</p>
-                    <hr style="margin:12px 0; border:0; border-top:1px solid #fecdd3;">
-                    <b>🎯 Strategic Questions to Address:</b>
+                    <h3>🎙️ AI Verbal Performance Feedback</h3>
+                    <h4>Delivery & Impact Score: <span style="color:#e11d48;">{se.get('delivery_score')}/100</span></h4>
+                    <p><b>Fluency & Rhetorical Structure:</b> {se.get('fluency_rhetoric_feedback')}</p>
+                    <p><b>Key Strengths:</b> {se.get('key_strengths')}</p>
+                    <hr>
+                    <h5>🎯 Strategic Action Items:</h5>
                 """, unsafe_allow_html=True)
-
-                for q_idx, q_item in enumerate(s_data.get('key_questions', []), 1):
-                    st.markdown(f"- **Q{q_idx}:** {q_item}")
-
-                st.markdown("<br><b>💡 Recommended Key Vocabulary:</b>", unsafe_allow_html=True)
-                st.markdown(", ".join([f"`{term}`" for term in s_data.get('expected_key_terms', [])]))
+                for area in se.get('areas_for_improvement', []):
+                    st.markdown(f"- {area}")
                 st.markdown("</div>", unsafe_allow_html=True)
 
-                st.divider()
-
-                # 2. BỘ THU ÂM (AUDIO RECORDING) & THỦ CÔNG / TỰ ĐỘNG STT
-                st.markdown("#### 🎙️ Record Your Executive Response & Speech-to-Text")
-                col_rec, col_stt = st.columns([1, 1])
-
-                with col_rec:
-                    st.markdown("**1. Record Audio Response:**")
-                    speaking_audio = st.audio_input("Record your answer:", key=f"aud_speaking_{day_selected}")
-                    if speaking_audio:
-                        st.success("✅ Audio recorded successfully!")
-
-                with col_stt:
-                    st.markdown("**2. Transcribed Speech Text (STT):**")
-                    st.caption("Review or adjust your transcribed response below before AI scoring:")
-                    user_stt_text = st.text_area(
-                        "Transcript of your spoken response:",
-                        placeholder="Type or paste your transcribed speech here if audio isn't transcribed automatically...",
-                        height=120,
-                        key=f"txt_stt_{day_selected}"
-                    )
-
-                # 3. CHẤM ĐIỂM SPEAKING & ĐÁNH GIÁ CHI TIẾT (EVALUATION & SCORING)
-                if st.button("Evaluate Executive Speaking & Deliver Feedback", key=f"btn_s_eval_{day_selected}", use_container_width=True):
-                    if not user_stt_text or len(user_stt_text.strip()) < 10:
-                        st.warning("⚠️ Please provide a transcript or text of your spoken response (at least 10 words) to evaluate.")
-                    else:
-                        with st.spinner("AI Coach is analyzing fluency, C-suite tone, structure, and grammar..."):
-                            p_s_eval = f"""
-                            Perform a rigorous C-suite Executive Speaking Evaluation on the following speech transcript.
-                            ALL output MUST be strictly in 100% ENGLISH.
-
-                            Scenario context: {s_data.get('presentation_context')}
-                            Target Grammar focus: {day_grammar}
-                            Expected Key Terms: {", ".join(s_data.get('expected_key_terms', []))}
-                            User Spoken Transcript: "{user_stt_text}"
-
-                            Return JSON with keys:
-                            - 'overall_score': (integer 0 to 100)
-                            - 'fluency_delivery_score': (score out of 100 with brief notes)
-                            - 'vocabulary_precision_score': (score out of 100 with brief notes)
-                            - 'grammar_accuracy_score': (score out of 100 with brief notes)
-                            - 'executive_impact_score': (score out of 100 with brief notes)
-                            - 'strengths': (array of strings highlighting strong points)
-                            - 'key_improvements': (array of strings with specific actionable suggestions)
-                            - 'model_speech': (A highly refined, C-level executive polished response)
-                            """
-                            raw_se = generate_ai_response(p_s_eval)
-                            clean_se = extract_json(raw_se)
-                            if clean_se:
-                                try:
-                                    st.session_state[f"s_eval_res_{day_selected}"] = json.loads(clean_se)
-                                except Exception as e:
-                                    st.error(f"Error parsing speaking evaluation: {e}")
-
-                if f"s_eval_res_{day_selected}" in st.session_state:
-                    se_res = st.session_state[f"s_eval_res_{day_selected}"]
-                    st.divider()
-                    st.markdown("### 📊 Executive Speaking Performance Scorecard")
-
-                    st.success(f"🏆 **Overall Speaking Score: {se_res.get('overall_score', 0)} / 100**")
-
-                    s_col1, s_col2, s_col3, s_col4 = st.columns(4)
-                    with s_col1:
-                        st.markdown(f"""
-                        <div class="apex-card">
-                            <h5>🗣️ Delivery</h5>
-                            <p>{se_res.get('fluency_delivery_score')}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    with s_col2:
-                        st.markdown(f"""
-                        <div class="apex-card">
-                            <h5>📚 Vocabulary</h5>
-                            <p>{se_res.get('vocabulary_precision_score')}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    with s_col3:
-                        st.markdown(f"""
-                        <div class="apex-card">
-                            <h5>📐 Grammar</h5>
-                            <p>{se_res.get('grammar_accuracy_score')}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    with s_col4:
-                        st.markdown(f"""
-                        <div class="apex-card">
-                            <h5>💼 Impact</h5>
-                            <p>{se_res.get('executive_impact_score')}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    st.markdown("#### 💪 Key Strengths:")
-                    for st_item in se_res.get("strengths", []):
-                        st.markdown(f"- ✅ {st_item}")
-
-                    st.markdown("#### 🎯 Areas for Improvement:")
-                    for imp_item in se_res.get("key_improvements", []):
-                        st.markdown(f"- ⚠️ {imp_item}")
-
-                    st.markdown(f"""
-                    <div class="correct-card" style="margin-top:15px;">
-                        <h4 style="color:#16a34a !important; margin-top:0;">🌟 Benchmark C-Suite Model Delivery:</h4>
-                        <p style="font-size:15px; font-style:italic;">"{se_res.get('model_speech')}"</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    play_audio(se_res.get('model_speech', ''))
-            else:
-                st.info("Click **'Generate Executive Speaking Prompt & Questions'** above to initialize today's speaking scenario.")
-
-    elif app_mode == "1. Comprehensive Diagnostic Assessment":
-        st.markdown("### 📋 Diagnostic Assessment Mode")
-        st.write("Complete this assessment to determine your baseline proficiency.")
-
     elif app_mode == "3. Error Log & Remind Review":
-        st.markdown("### 📑 Executive Error Log & Space Repetition Review")
-        if not st.session_state["error_log"]:
-            st.info("🎉 No incorrect answers logged yet. Keep practicing!")
+        st.markdown("""
+        <div class="hero-banner">
+            <h2 style='margin:0;'>Error Log & Spaced Repetition Review</h2>
+            <p style='margin:5px 0 0 0;'>Review all questions answered incorrectly across sessions.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        errors = st.session_state.get("error_log", [])
+        if not errors:
+            st.info("🎉 No error records found yet! Keep practicing.")
         else:
-            for idx, err in enumerate(st.session_state["error_log"], 1):
+            st.markdown(f"### 📋 Total Mistake Records: {len(errors)}")
+            if st.button("🗑️ Clear Error Log History"):
+                st.session_state["error_log"] = []
+                st.rerun()
+                
+            for idx, err in enumerate(errors, 1):
                 st.markdown(f"""
                 <div class="wrong-card">
-                    <b>[{err.get('skill')}] Entry #{idx}:</b> {err.get('question')}<br>
-                    ❌ <b>Your Selection:</b> {err.get('your_answer')}<br>
-                    ✅ <b>Correct Answer:</b> {err.get('correct_answer')}<br>
-                    💡 <b>Explanation:</b> {err.get('explanation')}
+                    <h4>{idx}. [{err.get('skill', 'Practice')}] {err.get('question')}</h4>
+                    <p style="color:#be123c !important;">❌ Your Answer: <b>{err.get('your_answer', 'None')}</b></p>
+                    <p style="color:#15803d !important;">✅ Correct Answer: <b>{err.get('correct_answer')}</b></p>
+                    <p>💡 <i>Explanation: {err.get('explanation')}</i></p>
                 </div>
                 """, unsafe_allow_html=True)
