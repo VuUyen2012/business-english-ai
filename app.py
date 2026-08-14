@@ -743,7 +743,7 @@ else:
             p_listen = f"Generate an executive briefing transcript (150-200 words) on '{day_topic}'. Include 5 comprehension questions. Return JSON with keys 'passage' and 'questions' (array of 'id', 'question', 'options', 'answer', 'explanation')."
             render_quiz_system(f"listen_quiz_{day_selected}", p_listen, "Load Listening Briefing", "Listening", seed_key=f"listen_seed_{day_selected}")
 
-        # --- 6. DETAILED WRITING SCENARIO (CẤU TRÚC HOÀN CHỈNH - FIX TRỆT ĐỂ) ---
+        # --- 6. DETAILED WRITING SCENARIO ---
         with tab_w:
             st.markdown(f"### ✍️ Detailed Writing Scenario ({day_topic})")
             
@@ -810,21 +810,18 @@ Return JSON object with exactly these keys:
                 with col_score2:
                     st.metric(label="Executive Tone & Clarity Score", value=f"{w_res.get('clarity_score', 'N/A')}/10")
                 
-                # 1. C1/C2 Model Answer (Hiển thị đẹp mắt, xuống dòng chuẩn)
                 st.markdown('<div class="correct-card">', unsafe_allow_html=True)
                 st.markdown("#### 🏆 **C1/C2 Benchmark Model Memo (Rewritten from Scratch):**")
                 sample_memo = w_res.get('c1_executive_sample', w_res.get('corrected_version', ''))
                 st.markdown(sample_memo)
                 st.markdown('</div>', unsafe_allow_html=True)
                 
-                # 2. Grammar & Syntax Analysis (Bóc tách sạch sẽ, không hiện mã JSON)
                 st.markdown('<div class="hint-card">', unsafe_allow_html=True)
                 st.markdown("#### 📐 **Grammar & Syntax Analysis:**")
                 g_fb = w_res.get('grammar_and_syntax_feedback', '')
                 render_feedback_section(g_fb)
                 st.markdown('</div>', unsafe_allow_html=True)
 
-                # 3. Vocabulary Upgrades
                 v_fb = w_res.get('vocabulary_enhancements', '')
                 if v_fb:
                     st.markdown('<div class="hint-card">', unsafe_allow_html=True)
@@ -900,7 +897,7 @@ Return JSON with keys:
                 render_feedback_section(s_res.get('improvement_suggestions', ''))
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- 8. TRANSLATION PRACTICE ---
+        # --- 8. TRANSLATION PRACTICE (CẬP NHẬT CÁCH CHẤM ĐIỂM MỚI TẠI ĐÂY) ---
         with tab_t:
             st.markdown(f"### 🌐 Executive Translation Practice (Day {day_selected}: {day_topic})")
             st.caption(f"🎯 Target Grammar Integration: **{day_grammar}**")
@@ -941,15 +938,23 @@ Return JSON with keys:
 Input Data: {json.dumps(user_translations, ensure_ascii=False)}
 
 All explanations and feedback MUST be strictly in 100% ENGLISH.
+
+EVALUATION RUBRIC PER SENTENCE (Total Score: 10.0 points):
+1. Accuracy & Meaning (4.0 points): 4.0 for complete/precise meaning. Assign partial credit (2.0 - 3.5) if main idea is clear despite minor errors. NEVER give 0 if core meaning is conveyed.
+2. Grammar & Syntax (3.0 points): 3.0 for perfect grammar; 1.5 - 2.5 for 1-2 minor tense/preposition errors; 0 - 1.0 for severe errors.
+3. Vocabulary & Spelling (2.0 points): 2.0 for precise vocabulary; 1.0 for minor typos/awkward phrasing (e.g., 'opeation' instead of 'operation').
+4. Fluency & Tone (1.0 point): 1.0 for natural C1/C2 tone; 0.5 for literal translation.
+
 Return a JSON object with key 'evaluations' containing an array of 10 objects (one for each sentence):
 - 'id': integer (1-10)
 - 'vietnamese': string
 - 'user_english': string
 - 'correct_english': string (Ideal C1/C2 Executive English translation)
-- 'grammar_error': string (Specific error analysis, grammar/vocab corrections, or 'None' if perfect)
-- 'is_correct': boolean (true if highly accurate C1/C2 level, false otherwise)
+- 'score': float (0.0 to 10.0 numeric score calculated from the rubric above)
+- 'grammar_error': string (Detailed coaching feedback, listing specific errors or praise)
+- 'is_correct': boolean (true if score >= 8.0, false otherwise)
 """
-                    with st.spinner("AI Coach analyzing grammar errors and evaluating translations..."):
+                    with st.spinner("AI Coach analyzing grammar errors & calculating partial credit scores..."):
                         raw_eval_res = generate_ai_response(eval_prompt)
                         clean_eval_res = extract_json(raw_eval_res)
                         if clean_eval_res:
@@ -963,38 +968,41 @@ Return a JSON object with key 'evaluations' containing an array of 10 objects (o
                 if trans_eval and "evaluations" in trans_eval:
                     st.markdown("### 📊 Translation Assessment & Corrected Output")
                     eval_list = trans_eval["evaluations"]
-                    correct_count = 0
+                    total_points = 0.0
                     
                     for item in eval_list:
-                        is_c = item.get("is_correct", False)
-                        if is_c: correct_count += 1
+                        score = float(item.get("score", 0.0))
+                        total_points += score
                         
                         st.markdown(f"**Sentence {item.get('id')}:** *{item.get('vietnamese')}*")
                         st.markdown(f"👉 **Your Draft:** {item.get('user_english') if item.get('user_english') else '*(No translation provided)*'}")
                         
-                        if is_c:
-                            st.markdown(f"""
-                            <div class="correct-card">
-                                ✅ <b>Excellent Translation!</b><br>
-                                🎯 <b>Executive Version:</b> {item.get('correct_english')}<br>
-                                💡 <b>Notes:</b> {item.get('grammar_error')}
-                            </div>
-                            """, unsafe_allow_html=True)
+                        # Hiển thị kết quả & phân loại theo thang điểm 10
+                        if score >= 8.0:
+                            card_class = "correct-card"
+                            badge = f"✅ Excellent (Pass) — Score: {score:.1f}/10"
+                        elif score >= 5.0:
+                            card_class = "hint-card"
+                            badge = f"⚠️ Partial Credit (Needs Refinement) — Score: {score:.1f}/10"
                         else:
-                            st.markdown(f"""
-                            <div class="wrong-card">
-                                ❌ <b>Needs Revision</b><br>
-                                🎯 <b>Correct Executive Version:</b> {item.get('correct_english')}<br>
-                                💡 <b>Error Analysis & Coaching:</b> {item.get('grammar_error')}
-                            </div>
-                            """, unsafe_allow_html=True)
-                            
+                            card_class = "wrong-card"
+                            badge = f"❌ Needs Major Revision — Score: {score:.1f}/10"
+
+                        st.markdown(f"""
+                        <div class="{card_class}">
+                            <b>{badge}</b><br>
+                            🎯 <b>Correct Executive Version:</b> {item.get('correct_english')}<br>
+                            💡 <b>Error Analysis & Coaching:</b> {item.get('grammar_error')}
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        if score < 8.0:
                             log_item = {
                                 "skill": "Translation",
                                 "question": f"Translate: {item.get('vietnamese')}",
                                 "your_answer": item.get('user_english'),
                                 "correct_answer": item.get('correct_english'),
-                                "explanation": item.get('grammar_error')
+                                "explanation": f"Score: {score:.1f}/10. {item.get('grammar_error')}"
                             }
                             if log_item not in st.session_state["error_log"]:
                                 st.session_state["error_log"].append(log_item)
@@ -1002,7 +1010,15 @@ Return a JSON object with key 'evaluations' containing an array of 10 objects (o
                         play_audio(item.get('correct_english', ''))
                         st.write("---")
                     
-                    st.success(f"🏆 Overall Translation Score: {correct_count}/{len(eval_list)} ({(correct_count/len(eval_list))*100:.0f}%)")
+                    max_possible = len(eval_list) * 10.0
+                    overall_percentage = (total_points / max_possible) * 100 if max_possible > 0 else 0
+                    
+                    if overall_percentage >= 80:
+                        st.success(f"🏆 Overall Translation Score: {total_points:.1f}/100 ({overall_percentage:.0f}%) — Outstanding C1/C2 Fluency!")
+                    elif overall_percentage >= 50:
+                        st.info(f"🏆 Overall Translation Score: {total_points:.1f}/100 ({overall_percentage:.0f}%) — Good progress! Review the coaching points above to refine your draft.")
+                    else:
+                        st.warning(f"🏆 Overall Translation Score: {total_points:.1f}/100 ({overall_percentage:.0f}%) — Requires additional practice on grammar & vocabulary.")
 
     elif app_mode == "3. Error Log & Remind Review":
         st.markdown("""
