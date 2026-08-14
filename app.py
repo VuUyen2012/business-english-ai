@@ -52,7 +52,7 @@ def save_data_to_file():
         return False
 
 # ==========================================
-# 1. PAGE CONFIG & FULL CSS STYLING FIX
+# 1. PAGE CONFIG & FULL CSS STYLING
 # ==========================================
 st.set_page_config(
     page_title="Apex English - 30-Day Executive Coaching",
@@ -103,8 +103,9 @@ st.markdown("""
     [data-baseweb="select"] * {
         color: #0f172a !important;
         background-color: #ffffff !important;
-        border: 1px solid #fda4af !important;
+        border: 1.5px solid #fda4af !important;
         border-radius: 6px !important;
+        font-size: 15px !important;
     }
     
     ::placeholder {
@@ -177,7 +178,7 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* FIX CHO TẤT CẢ NÚT BẤM VÀ FORM SUBMIT BUTTONS */
+    /* ĐỊNH DẠNG TẤT CẢ CÁC NÚT BẤM VÀ SUBMIT BUTTONS NỔI BẬT */
     .stButton>button, 
     .stButton>button *,
     div[data-testid="stFormSubmitButton"] > button,
@@ -367,7 +368,7 @@ def get_or_generate_data(session_key, prompt_text, seed_key=None):
     return st.session_state.get(session_key, None)
 
 # ==========================================
-# 4. EVALUATION & QUIZ SYSTEM WITH PERSISTENCE FIX
+# 4. EVALUATION & QUIZ SYSTEM WITH PERSISTENCE
 # ==========================================
 def evaluate_answer(user_selection, raw_correct, options):
     if user_selection is None or raw_correct is None:
@@ -434,39 +435,33 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name, seed_key=Non
 
         questions = data.get("questions", [])
         if questions:
-            saved_answers = st.session_state.get(f"{tab_key}_user_ans", {})
-            with st.form(f"form_{tab_key}"):
+            for idx, q in enumerate(questions, 1):
+                st.markdown(f"**Question {idx}: {q.get('question')}**")
+                opts = q.get('options', [])
+                key_input = f"q_{tab_key}_{idx}"
+                
+                # Trực tiếp kết nối state mà không cần st.form
+                if key_input not in st.session_state:
+                    st.session_state[key_input] = opts[0] if opts else ""
+
+                if opts and len(opts) > 0:
+                    current_val = st.session_state[key_input]
+                    opt_idx = opts.index(current_val) if current_val in opts else 0
+                    st.radio("Select Option:", opts, index=opt_idx, key=key_input)
+                else:
+                    st.text_input("Your Answer:", key=key_input)
+                st.write("---")
+            
+            if st.button("Submit & Evaluate Answers", key=f"sub_{tab_key}", use_container_width=True):
+                user_answers = {}
                 for idx, q in enumerate(questions, 1):
                     q_id = str(q.get('id', idx))
-                    st.markdown(f"**Question {idx}: {q.get('question')}**")
-                    opts = q.get('options', [])
                     key_input = f"q_{tab_key}_{idx}"
-                    
-                    # Khởi tạo giá trị trong session_state để duy trì lưu vết
-                    if key_input not in st.session_state:
-                        saved_val = saved_answers.get(q_id) or saved_answers.get(idx)
-                        if opts and len(opts) > 0:
-                            st.session_state[key_input] = saved_val if saved_val in opts else opts[0]
-                        else:
-                            st.session_state[key_input] = saved_val if saved_val else ""
-                    
-                    if opts and len(opts) > 0:
-                        st.radio("Select Option:", opts, key=key_input)
-                    else:
-                        st.text_input("Your Answer:", key=key_input)
-                    st.write("---")
+                    user_answers[q_id] = st.session_state.get(key_input)
                 
-                sub_quiz = st.form_submit_button("Submit & Evaluate Answers")
-                if sub_quiz:
-                    user_answers = {}
-                    for idx, q in enumerate(questions, 1):
-                        q_id = str(q.get('id', idx))
-                        key_input = f"q_{tab_key}_{idx}"
-                        user_answers[q_id] = st.session_state.get(key_input)
-                    
-                    st.session_state[f"{tab_key}_sub"] = True
-                    st.session_state[f"{tab_key}_user_ans"] = user_answers
-                    save_data_to_file()
+                st.session_state[f"{tab_key}_sub"] = True
+                st.session_state[f"{tab_key}_user_ans"] = user_answers
+                save_data_to_file()
 
         if st.session_state.get(f"{tab_key}_sub", False):
             user_ans = st.session_state.get(f"{tab_key}_user_ans", {})
@@ -563,7 +558,7 @@ else:
             "📖 Reading", "🎧 Listening Briefing", "✍️ Detailed Writing Scenario", "💬 Data-Driven Speaking"
         ])
 
-        # --- 1. VOCABULARY & GAMES (PERFECT PERSISTENCE) ---
+        # --- 1. VOCABULARY & GAMES (PERFECT PERSISTENCE FIX) ---
         with tab_v:
             st.markdown(f"### 🔤 10 Core Executive Vocabulary Words: {day_topic}")
             
@@ -590,33 +585,30 @@ else:
             pgame = f"Generate 5 business vocabulary game questions for topic '{day_topic}'. ALL text MUST be in ENGLISH. Include advanced words beyond the core 10. For Game 1 return 'fill_words' array of objects ('word', 'hint_english'). For Game 2 return 'mcq_words' array of objects ('word', 'options', 'correct_option'). NOTE: 'correct_option' MUST be the exact full text string matching one item in 'options'. Return JSON with keys 'fill_words' and 'mcq_words'."
             g_data = get_or_generate_data(f"g_data_{day_selected}", pgame, seed_key=f"game_day_{day_selected}") or {}
 
-            # GAME 1 FIX
+            # FIX GAME 1 (TỰ ĐỘNG BINDING BẰNG STATE TRỰC TIẾP, KHÔNG BỊ TRỐNG CHỮ NÀO)
             if game_type == "Game 1: Fill in Missing Letters":
                 fill_list = g_data.get("fill_words", [])
                 if fill_list:
-                    saved_g1_ans = st.session_state.get(f"g1_ans_{day_selected}", {})
-                    with st.form(f"g1_form_{day_selected}"):
-                        for idx, gw in enumerate(fill_list, 1):
-                            w_str = gw.get('word', '')
-                            f_char = w_str[0] if w_str else 'A'
-                            st.markdown(f"**Question {idx}:** English Clue: *{gw.get('hint_english')}*")
-                            
-                            key_g1_in = f"g1_in_{day_selected}_{idx}"
-                            if key_g1_in not in st.session_state:
-                                st.session_state[key_g1_in] = saved_g1_ans.get(idx, "")
-                            
-                            st.text_input(f"Word starting with '{f_char}...':", key=key_g1_in)
+                    for idx, gw in enumerate(fill_list, 1):
+                        w_str = gw.get('word', '')
+                        f_char = w_str[0] if w_str else 'A'
+                        st.markdown(f"**Question {idx}:** English Clue: *{gw.get('hint_english')}*")
                         
-                        sub_g1 = st.form_submit_button("Check Game 1 Answers")
-                        if sub_g1:
-                            u_g1_ans = {}
-                            for idx in range(1, len(fill_list) + 1):
-                                key_g1_in = f"g1_in_{day_selected}_{idx}"
-                                u_g1_ans[idx] = st.session_state.get(key_g1_in, "")
-                            
-                            st.session_state[f"g1_sub_{day_selected}"] = True
-                            st.session_state[f"g1_ans_{day_selected}"] = u_g1_ans
-                            save_data_to_file()
+                        key_g1_in = f"g1_in_{day_selected}_{idx}"
+                        if key_g1_in not in st.session_state:
+                            st.session_state[key_g1_in] = ""
+                        
+                        st.text_input(f"Word starting with '{f_char}...':", key=key_g1_in)
+                    
+                    if st.button("Check Game 1 Answers", key=f"btn_g1_check_{day_selected}", use_container_width=True):
+                        u_g1_ans = {}
+                        for idx in range(1, len(fill_list) + 1):
+                            key_g1_in = f"g1_in_{day_selected}_{idx}"
+                            u_g1_ans[idx] = st.session_state.get(key_g1_in, "")
+                        
+                        st.session_state[f"g1_sub_{day_selected}"] = True
+                        st.session_state[f"g1_ans_{day_selected}"] = u_g1_ans
+                        save_data_to_file()
 
                     if st.session_state.get(f"g1_sub_{day_selected}", False):
                         g1_score = 0
@@ -632,34 +624,32 @@ else:
                                 st.markdown(f'<div class="wrong-card">❌ <b>Q{idx}: Incorrect.</b> Your answer: <b>{u_val if u_val else "None"}</b> | Correct answer: <b>{gw.get("word")}</b></div>', unsafe_allow_html=True)
                         st.info(f"🏆 Game 1 Final Score: {g1_score}/{len(fill_list)}")
 
-            # GAME 2 FIX
+            # FIX GAME 2
             elif game_type == "Game 2: Definition Matching Quiz":
                 mcq_list = g_data.get("mcq_words", [])
                 if mcq_list:
-                    saved_g2_ans = st.session_state.get(f"g2_ans_{day_selected}", {})
-                    with st.form(f"g2_form_{day_selected}"):
-                        for idx, mw in enumerate(mcq_list, 1):
-                            st.markdown(f"**Question {idx}: What is the exact meaning of '{mw.get('word')}'?**")
-                            key_g2_in = f"g2_in_{day_selected}_{idx}"
-                            opts = mw.get('options', [])
-                            
-                            if key_g2_in not in st.session_state:
-                                saved_val = saved_g2_ans.get(idx)
-                                st.session_state[key_g2_in] = saved_val if saved_val in opts else opts[0]
-
-                            st.radio("Select Option:", opts, key=key_g2_in)
-                            st.write("---")
+                    for idx, mw in enumerate(mcq_list, 1):
+                        st.markdown(f"**Question {idx}: What is the exact meaning of '{mw.get('word')}'?**")
+                        key_g2_in = f"g2_in_{day_selected}_{idx}"
+                        opts = mw.get('options', [])
                         
-                        sub_g2 = st.form_submit_button("Check Game 2 Answers")
-                        if sub_g2:
-                            u_g2_ans = {}
-                            for idx in range(1, len(mcq_list) + 1):
-                                key_g2_in = f"g2_in_{day_selected}_{idx}"
-                                u_g2_ans[idx] = st.session_state.get(key_g2_in)
-                            
-                            st.session_state[f"g2_sub_{day_selected}"] = True
-                            st.session_state[f"g2_ans_{day_selected}"] = u_g2_ans
-                            save_data_to_file()
+                        if key_g2_in not in st.session_state:
+                            st.session_state[key_g2_in] = opts[0] if opts else ""
+
+                        curr_val = st.session_state[key_g2_in]
+                        opt_idx = opts.index(curr_val) if curr_val in opts else 0
+                        st.radio("Select Option:", opts, index=opt_idx, key=key_g2_in)
+                        st.write("---")
+                    
+                    if st.button("Check Game 2 Answers", key=f"btn_g2_check_{day_selected}", use_container_width=True):
+                        u_g2_ans = {}
+                        for idx in range(1, len(mcq_list) + 1):
+                            key_g2_in = f"g2_in_{day_selected}_{idx}"
+                            u_g2_ans[idx] = st.session_state.get(key_g2_in)
+                        
+                        st.session_state[f"g2_sub_{day_selected}"] = True
+                        st.session_state[f"g2_ans_{day_selected}"] = u_g2_ans
+                        save_data_to_file()
 
                     if st.session_state.get(f"g2_sub_{day_selected}", False):
                         g2_score = 0
@@ -676,7 +666,7 @@ else:
                                 st.markdown(f'<div class="wrong-card">❌ <b>Q{idx}: Incorrect.</b> Selected: <b>{u_v if u_v else "None"}</b> | Correct: <b>{disp}</b></div>', unsafe_allow_html=True)
                         st.info(f"🏆 Game 2 Final Score: {g2_score}/{len(mcq_list)}")
 
-        # --- 2. PRONUNCIATION (FULL PERSISTENCE) ---
+        # --- 2. PRONUNCIATION ---
         with tab_p:
             st.markdown(f"### 🎙️ Passage Pronunciation Practice ({day_topic})")
             pp = f"Generate 5 short executive speech passages (2-3 sentences each) on Topic '{day_topic}'. ALL text MUST be in ENGLISH. Return JSON object with key 'passages' containing an array of 5 strings."
@@ -760,7 +750,7 @@ else:
             pl = f"Generate a executive spoken briefing script (200 words) on '{day_topic}'. ALL text MUST be in 100% ENGLISH. Return JSON with 'passage' string and 'questions' array of 5 listening comprehension questions ('question', 'options', 'answer', 'explanation')."
             render_quiz_system(f"listening_{day_selected}", pl, f"Load Day {day_selected} Audio Briefing", "Listening", seed_key=f"listening_module_day_{day_selected}")
 
-        # --- 6. WRITING SCENARIO (FULL PERSISTENCE FIX) ---
+        # --- 6. WRITING SCENARIO (FULL PERSISTENCE) ---
         with tab_w:
             st.markdown(f"### ✍️ Detailed Executive Writing Scenario ({day_topic})")
             pw = f"Generate a complex executive writing scenario on '{day_topic}'. ALL text MUST be in ENGLISH. Return JSON object with 'scenario' string and 'prompt' instruction."
@@ -801,7 +791,7 @@ else:
                     st.code(wer.get('revised_version'))
                     st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- 7. DATA-DRIVEN SPEAKING (FULL PERSISTENCE FIX) ---
+        # --- 7. DATA-DRIVEN SPEAKING (FULL PERSISTENCE) ---
         with tab_s:
             st.markdown(f"### 💬 Data-Driven Executive Speaking ({day_topic})")
             ps = f"Generate an executive speaking task requiring data presentation on '{day_topic}'. ALL text MUST be in ENGLISH. Return JSON with 'chart_description', 'speaking_prompt', 'recommended_phrases'."
