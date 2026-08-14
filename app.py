@@ -32,13 +32,12 @@ def load_saved_data():
 def get_exportable_state():
     """
     Trích xuất dữ liệu cần thiết để lưu trữ.
-    Loại bỏ các widget key tự động và các Object không thể Serialize JSON (Bytes, Audio Objects, etc.)
+    Loại bỏ các widget key tự động và các Object không thể Serialize JSON.
     """
     data_to_save = {}
     for key, val in st.session_state.items():
         if key.startswith("FormSubmitter:") or key in ["data_loaded"]:
             continue
-        # Bỏ qua dữ liệu bytes, audio input objects hoặc file upload để tránh TypeError
         if isinstance(val, (bytes, bytearray)):
             continue
         try:
@@ -376,15 +375,11 @@ def get_or_generate_data(session_key, prompt_text, seed_key=None):
 # 4. EVALUATION & QUIZ SYSTEM WITH PERSISTENCE
 # ==========================================
 def evaluate_answer(user_selection, raw_correct, options):
-    """
-    Sửa triệt để lỗi 'Correct: None' bằng cách xử lý linh hoạt mọi kiểu dữ liệu của raw_correct.
-    """
     if user_selection is None:
         return False, str(raw_correct) if raw_correct is not None else "N/A"
 
     u_sel_str = str(user_selection).strip().lower()
     
-    # Trường hợp raw_correct bị None từ JSON của AI, gán mặc định nếu có thể
     if raw_correct is None or raw_correct == "None":
         if options and len(options) > 0:
             raw_correct = options[0]
@@ -393,11 +388,9 @@ def evaluate_answer(user_selection, raw_correct, options):
 
     c_ans_str = str(raw_correct).strip().lower()
 
-    # So sánh trực tiếp chuỗi
     if u_sel_str == c_ans_str:
         return True, str(user_selection)
 
-    # Nếu options tồn tại, xử lý các trường hợp AI trả về index (0, 1, 2) hoặc ký tự (A, B, C)
     if options and isinstance(options, list):
         if c_ans_str.isdigit():
             idx = int(c_ans_str)
@@ -731,14 +724,19 @@ else:
             p_listen = f"Generate an executive briefing transcript (150-200 words) on '{day_topic}'. Include 5 comprehension questions. Return JSON with keys 'passage' and 'questions' (array of 'id', 'question', 'options', 'answer', 'explanation')."
             render_quiz_system(f"listen_quiz_{day_selected}", p_listen, "Load Listening Briefing", "Listening", seed_key=f"listen_seed_{day_selected}")
 
-        # --- 6. DETAILED WRITING SCENARIO ---
+        # --- 6. DETAILED WRITING SCENARIO (ĐÃ SỬA VÀ TỰ ĐỘNG TẠO ĐỀ BÀI) ---
         with tab_w:
             st.markdown(f"### ✍️ Detailed Writing Scenario ({day_topic})")
-            p_write_prompt = f"Generate an executive business writing challenge for Day {day_selected} on '{day_topic}'. Return JSON object with key 'scenario' string."
+            
+            p_write_prompt = f"Generate a detailed C-suite executive business writing scenario (150-200 words) for Day {day_selected} Topic '{day_topic}' requiring grammar focus '{day_grammar}'. Include: Context, Challenge, and Specific Writing Directives. Return JSON object with key 'scenario' string."
+            
             w_scen_dict = get_or_generate_data(f"w_scen_{day_selected}", p_write_prompt, seed_key=f"write_scen_{day_selected}")
             
             if w_scen_dict and "scenario" in w_scen_dict:
-                st.markdown(f'<div class="hint-card"><b>Writing Prompt / Scenario:</b><br>{w_scen_dict["scenario"]}</div>', unsafe_allow_html=True)
+                st.markdown('<div class="hint-card">', unsafe_allow_html=True)
+                st.markdown(f"#### 📝 **Executive Briefing & Writing Prompt:**")
+                st.write(w_scen_dict["scenario"])
+                st.markdown('</div>', unsafe_allow_html=True)
 
             u_write_key = f"u_write_input_{day_selected}"
             if u_write_key not in st.session_state:
@@ -784,7 +782,10 @@ else:
             s_scen_dict = get_or_generate_data(f"s_scen_{day_selected}", p_speak_prompt, seed_key=f"speak_scen_{day_selected}")
             
             if s_scen_dict and "speaking_prompt" in s_scen_dict:
-                st.markdown(f'<div class="hint-card"><b>Speaking Briefing & Data Prompt:</b><br>{s_scen_dict["speaking_prompt"]}</div>', unsafe_allow_html=True)
+                st.markdown('<div class="hint-card">', unsafe_allow_html=True)
+                st.markdown("#### 🎙️ **Speaking Briefing & Data Prompt:**")
+                st.write(s_scen_dict["speaking_prompt"])
+                st.markdown('</div>', unsafe_allow_html=True)
 
             u_speak_key = f"u_speak_input_{day_selected}"
             if u_speak_key not in st.session_state:
@@ -823,7 +824,7 @@ else:
                 st.write(s_res.get('improvement_suggestions', ''))
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- 8. TRANSLATION PRACTICE (BỔ SUNG) ---
+        # --- 8. TRANSLATION PRACTICE ---
         with tab_t:
             st.markdown(f"### 🌐 Executive Translation Practice (Day {day_selected}: {day_topic})")
             st.caption(f"🎯 Target Grammar Integration: **{day_grammar}**")
@@ -836,7 +837,6 @@ else:
             if sentences:
                 st.markdown('<div class="hint-card">Translate the following 10 sentences into C1/C2 Executive English. Click <b>"Submit & Grade Translations"</b> when finished.</div>', unsafe_allow_html=True)
                 
-                # Hiển thị 10 ô nhập văn bản cho 10 câu
                 for s in sentences:
                     s_id = s.get("id")
                     vn_text = s.get("vietnamese", "")
@@ -883,7 +883,6 @@ Return a JSON object with key 'evaluations' containing an array of 10 objects (o
                             except Exception as e:
                                 st.error(f"Translation Parsing Error: {e}")
 
-                # Hiển thị kết quả đánh giá dịch
                 trans_eval = st.session_state.get(f"trans_eval_res_{day_selected}")
                 if trans_eval and "evaluations" in trans_eval:
                     st.markdown("### 📊 Translation Assessment & Corrected Output")
@@ -914,7 +913,6 @@ Return a JSON object with key 'evaluations' containing an array of 10 objects (o
                             </div>
                             """, unsafe_allow_html=True)
                             
-                            # Log lỗi vào nhật ký
                             log_item = {
                                 "skill": "Translation",
                                 "question": f"Translate: {item.get('vietnamese')}",
