@@ -33,10 +33,8 @@ def get_exportable_state():
     """Trích xuất toàn bộ dữ liệu cần thiết để lưu trữ."""
     data_to_save = {}
     for key, val in st.session_state.items():
-        # Bỏ qua các key hệ thống tạm thời của Streamlit
         if key.startswith("FormSubmitter:") or key in ["data_loaded"]:
             continue
-        # Bỏ qua dữ liệu audio dạng bytes thô không thể serialized vào JSON
         if isinstance(val, (bytes, bytearray)):
             continue
         data_to_save[key] = val
@@ -54,7 +52,7 @@ def save_data_to_file():
         return False
 
 # ==========================================
-# 1. PAGE CONFIG & OVERRIDE ALL DARK/BLACK ELEMENTS
+# 1. PAGE CONFIG & FULL CSS STYLING FIX
 # ==========================================
 st.set_page_config(
     page_title="Apex English - 30-Day Executive Coaching",
@@ -179,7 +177,11 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    .stButton>button, .stButton>button * {
+    /* FIX CHO TẤT CẢ NÚT BẤM VÀ FORM SUBMIT BUTTONS */
+    .stButton>button, 
+    .stButton>button *,
+    div[data-testid="stFormSubmitButton"] > button,
+    div[data-testid="stFormSubmitButton"] > button * {
         background: linear-gradient(135deg, #e11d48 0%, #f43f5e 100%) !important;
         color: #ffffff !important;
         border-radius: 8px !important;
@@ -187,7 +189,8 @@ st.markdown("""
         border: none !important;
         box-shadow: 0 2px 4px rgba(225,29,72,0.2) !important;
     }
-    .stButton>button:hover {
+    .stButton>button:hover,
+    div[data-testid="stFormSubmitButton"] > button:hover {
         background: linear-gradient(135deg, #be123c 0%, #e11d48 100%) !important;
     }
 </style>
@@ -364,7 +367,7 @@ def get_or_generate_data(session_key, prompt_text, seed_key=None):
     return st.session_state.get(session_key, None)
 
 # ==========================================
-# 4. EVALUATION & QUIZ SYSTEM
+# 4. EVALUATION & QUIZ SYSTEM WITH PERSISTENCE FIX
 # ==========================================
 def evaluate_answer(user_selection, raw_correct, options):
     if user_selection is None or raw_correct is None:
@@ -433,25 +436,34 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name, seed_key=Non
         if questions:
             saved_answers = st.session_state.get(f"{tab_key}_user_ans", {})
             with st.form(f"form_{tab_key}"):
-                user_answers = {}
                 for idx, q in enumerate(questions, 1):
+                    q_id = str(q.get('id', idx))
                     st.markdown(f"**Question {idx}: {q.get('question')}**")
                     opts = q.get('options', [])
                     key_input = f"q_{tab_key}_{idx}"
-                    default_val = saved_answers.get(str(q.get('id', idx))) or saved_answers.get(q.get('id', idx))
+                    
+                    # Khởi tạo giá trị trong session_state để duy trì lưu vết
+                    if key_input not in st.session_state:
+                        saved_val = saved_answers.get(q_id) or saved_answers.get(idx)
+                        if opts and len(opts) > 0:
+                            st.session_state[key_input] = saved_val if saved_val in opts else opts[0]
+                        else:
+                            st.session_state[key_input] = saved_val if saved_val else ""
                     
                     if opts and len(opts) > 0:
-                        default_index = opts.index(default_val) if default_val in opts else None
-                        user_answers[q.get('id', idx)] = st.radio(
-                            "Select Option:", opts, key=key_input, index=default_index
-                        )
+                        st.radio("Select Option:", opts, key=key_input)
                     else:
-                        user_answers[q.get('id', idx)] = st.text_input(
-                            "Your Answer:", value=default_val if default_val else "", key=key_input
-                        )
+                        st.text_input("Your Answer:", key=key_input)
                     st.write("---")
                 
-                if st.form_submit_button("Submit & Evaluate Answers"):
+                sub_quiz = st.form_submit_button("Submit & Evaluate Answers")
+                if sub_quiz:
+                    user_answers = {}
+                    for idx, q in enumerate(questions, 1):
+                        q_id = str(q.get('id', idx))
+                        key_input = f"q_{tab_key}_{idx}"
+                        user_answers[q_id] = st.session_state.get(key_input)
+                    
                     st.session_state[f"{tab_key}_sub"] = True
                     st.session_state[f"{tab_key}_user_ans"] = user_answers
                     save_data_to_file()
@@ -462,7 +474,8 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name, seed_key=Non
             st.markdown("### 📊 Executive Assessment Results")
             
             for idx, q in enumerate(questions, 1):
-                ans = user_ans.get(q.get('id', idx))
+                q_id = str(q.get('id', idx))
+                ans = user_ans.get(q_id)
                 raw_correct = q.get('answer')
                 opts = q.get('options', [])
                 
@@ -487,7 +500,7 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name, seed_key=Non
             st.success(f"🏆 Overall Score: {score}/{len(questions)} ({(score/len(questions))*100:.0f}%)")
 
 # ==========================================
-# 5. MAIN CURRICULUM
+# 5. MAIN CURRICULUM & SKILLS MODULES
 # ==========================================
 if not api_key:
     st.warning("⚠️ Please input your Groq API Key in the sidebar to activate the program.")
@@ -550,7 +563,7 @@ else:
             "📖 Reading", "🎧 Listening Briefing", "✍️ Detailed Writing Scenario", "💬 Data-Driven Speaking"
         ])
 
-        # --- 1. VOCABULARY & GAMES ---
+        # --- 1. VOCABULARY & GAMES (PERFECT PERSISTENCE) ---
         with tab_v:
             st.markdown(f"### 🔤 10 Core Executive Vocabulary Words: {day_topic}")
             
@@ -577,21 +590,30 @@ else:
             pgame = f"Generate 5 business vocabulary game questions for topic '{day_topic}'. ALL text MUST be in ENGLISH. Include advanced words beyond the core 10. For Game 1 return 'fill_words' array of objects ('word', 'hint_english'). For Game 2 return 'mcq_words' array of objects ('word', 'options', 'correct_option'). NOTE: 'correct_option' MUST be the exact full text string matching one item in 'options'. Return JSON with keys 'fill_words' and 'mcq_words'."
             g_data = get_or_generate_data(f"g_data_{day_selected}", pgame, seed_key=f"game_day_{day_selected}") or {}
 
+            # GAME 1 FIX
             if game_type == "Game 1: Fill in Missing Letters":
                 fill_list = g_data.get("fill_words", [])
                 if fill_list:
                     saved_g1_ans = st.session_state.get(f"g1_ans_{day_selected}", {})
                     with st.form(f"g1_form_{day_selected}"):
-                        u_g1_ans = {}
                         for idx, gw in enumerate(fill_list, 1):
                             w_str = gw.get('word', '')
                             f_char = w_str[0] if w_str else 'A'
                             st.markdown(f"**Question {idx}:** English Clue: *{gw.get('hint_english')}*")
+                            
                             key_g1_in = f"g1_in_{day_selected}_{idx}"
-                            def_val = saved_g1_ans.get(idx, "")
-                            u_g1_ans[idx] = st.text_input(f"Word starting with '{f_char}...':", value=def_val, key=key_g1_in)
+                            if key_g1_in not in st.session_state:
+                                st.session_state[key_g1_in] = saved_g1_ans.get(idx, "")
+                            
+                            st.text_input(f"Word starting with '{f_char}...':", key=key_g1_in)
                         
-                        if st.form_submit_button("Check Game 1 Answers"):
+                        sub_g1 = st.form_submit_button("Check Game 1 Answers")
+                        if sub_g1:
+                            u_g1_ans = {}
+                            for idx in range(1, len(fill_list) + 1):
+                                key_g1_in = f"g1_in_{day_selected}_{idx}"
+                                u_g1_ans[idx] = st.session_state.get(key_g1_in, "")
+                            
                             st.session_state[f"g1_sub_{day_selected}"] = True
                             st.session_state[f"g1_ans_{day_selected}"] = u_g1_ans
                             save_data_to_file()
@@ -610,22 +632,31 @@ else:
                                 st.markdown(f'<div class="wrong-card">❌ <b>Q{idx}: Incorrect.</b> Your answer: <b>{u_val if u_val else "None"}</b> | Correct answer: <b>{gw.get("word")}</b></div>', unsafe_allow_html=True)
                         st.info(f"🏆 Game 1 Final Score: {g1_score}/{len(fill_list)}")
 
+            # GAME 2 FIX
             elif game_type == "Game 2: Definition Matching Quiz":
                 mcq_list = g_data.get("mcq_words", [])
                 if mcq_list:
                     saved_g2_ans = st.session_state.get(f"g2_ans_{day_selected}", {})
                     with st.form(f"g2_form_{day_selected}"):
-                        u_g2_ans = {}
                         for idx, mw in enumerate(mcq_list, 1):
                             st.markdown(f"**Question {idx}: What is the exact meaning of '{mw.get('word')}'?**")
                             key_g2_in = f"g2_in_{day_selected}_{idx}"
                             opts = mw.get('options', [])
-                            def_val = saved_g2_ans.get(idx)
-                            def_idx = opts.index(def_val) if def_val in opts else None
-                            u_g2_ans[idx] = st.radio("Select Option:", opts, key=key_g2_in, index=def_idx)
+                            
+                            if key_g2_in not in st.session_state:
+                                saved_val = saved_g2_ans.get(idx)
+                                st.session_state[key_g2_in] = saved_val if saved_val in opts else opts[0]
+
+                            st.radio("Select Option:", opts, key=key_g2_in)
                             st.write("---")
                         
-                        if st.form_submit_button("Check Game 2 Answers"):
+                        sub_g2 = st.form_submit_button("Check Game 2 Answers")
+                        if sub_g2:
+                            u_g2_ans = {}
+                            for idx in range(1, len(mcq_list) + 1):
+                                key_g2_in = f"g2_in_{day_selected}_{idx}"
+                                u_g2_ans[idx] = st.session_state.get(key_g2_in)
+                            
                             st.session_state[f"g2_sub_{day_selected}"] = True
                             st.session_state[f"g2_ans_{day_selected}"] = u_g2_ans
                             save_data_to_file()
@@ -645,7 +676,7 @@ else:
                                 st.markdown(f'<div class="wrong-card">❌ <b>Q{idx}: Incorrect.</b> Selected: <b>{u_v if u_v else "None"}</b> | Correct: <b>{disp}</b></div>', unsafe_allow_html=True)
                         st.info(f"🏆 Game 2 Final Score: {g2_score}/{len(mcq_list)}")
 
-        # --- 2. PRONUNCIATION (PERSISTENT FEEDBACK ADDED) ---
+        # --- 2. PRONUNCIATION (FULL PERSISTENCE) ---
         with tab_p:
             st.markdown(f"### 🎙️ Passage Pronunciation Practice ({day_topic})")
             pp = f"Generate 5 short executive speech passages (2-3 sentences each) on Topic '{day_topic}'. ALL text MUST be in ENGLISH. Return JSON object with key 'passages' containing an array of 5 strings."
@@ -686,7 +717,6 @@ else:
                             st.session_state[f"pe_res_{day_selected}_{idx}"] = json.loads(clean_p_eval)
                             save_data_to_file()
 
-                # Tự động hiển thị lại kết quả phát âm đã lưu khi refresh
                 if f"pe_res_{day_selected}_{idx}" in st.session_state:
                     pe = st.session_state[f"pe_res_{day_selected}_{idx}"]
                     st.markdown(f"""
@@ -730,7 +760,7 @@ else:
             pl = f"Generate a executive spoken briefing script (200 words) on '{day_topic}'. ALL text MUST be in 100% ENGLISH. Return JSON with 'passage' string and 'questions' array of 5 listening comprehension questions ('question', 'options', 'answer', 'explanation')."
             render_quiz_system(f"listening_{day_selected}", pl, f"Load Day {day_selected} Audio Briefing", "Listening", seed_key=f"listening_module_day_{day_selected}")
 
-        # --- 6. DETAILED WRITING SCENARIO (PERSISTENT INPUT & EVALUATION) ---
+        # --- 6. WRITING SCENARIO (FULL PERSISTENCE FIX) ---
         with tab_w:
             st.markdown(f"### ✍️ Detailed Executive Writing Scenario ({day_topic})")
             pw = f"Generate a complex executive writing scenario on '{day_topic}'. ALL text MUST be in ENGLISH. Return JSON object with 'scenario' string and 'prompt' instruction."
@@ -742,16 +772,15 @@ else:
                 st.markdown(f"**Task Instructions:** {w_module.get('prompt')}")
                 st.markdown('</div>', unsafe_allow_html=True)
                 
-                saved_text = st.session_state.get(f"write_in_{day_selected}", "")
-                u_writing = st.text_area("Draft your executive response (Email/Memo):", value=saved_text, key=f"write_in_{day_selected}", height=200)
-                
-                # Cập nhật lập tức text gõ vào session_state
-                if u_writing != saved_text:
-                    st.session_state[f"write_in_{day_selected}"] = u_writing
-                    save_data_to_file()
+                key_write_in = f"write_in_{day_selected}"
+                if key_write_in not in st.session_state:
+                    st.session_state[key_write_in] = ""
+
+                u_writing = st.text_area("Draft your executive response (Email/Memo):", key=key_write_in, height=200)
 
                 if st.button("Evaluate Writing", key=f"btn_w_eval_{day_selected}"):
-                    if u_writing:
+                    if u_writing.strip():
+                        save_data_to_file()
                         with st.spinner("Analyzing tone, grammar, and executive vocabulary..."):
                             p_weval = f"Evaluate this executive writing response: '{u_writing}' for topic '{day_topic}'. ALL text MUST be in ENGLISH. Return JSON with 'grammar_score', 'tone_feedback', 'revised_version', 'key_improvements'."
                             raw_we = generate_ai_response(p_weval)
@@ -762,7 +791,6 @@ else:
                     else:
                         st.warning("Please draft your response before submitting.")
                 
-                # Tự động hiển thị lại nhận xét AI của bài viết đã lưu
                 if f"we_res_{day_selected}" in st.session_state:
                     wer = st.session_state[f"we_res_{day_selected}"]
                     st.markdown('<div class="hint-card">', unsafe_allow_html=True)
@@ -773,7 +801,7 @@ else:
                     st.code(wer.get('revised_version'))
                     st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- 7. DATA-DRIVEN SPEAKING (PERSISTENT EVALUATION) ---
+        # --- 7. DATA-DRIVEN SPEAKING (FULL PERSISTENCE FIX) ---
         with tab_s:
             st.markdown(f"### 💬 Data-Driven Executive Speaking ({day_topic})")
             ps = f"Generate an executive speaking task requiring data presentation on '{day_topic}'. ALL text MUST be in ENGLISH. Return JSON with 'chart_description', 'speaking_prompt', 'recommended_phrases'."
@@ -797,7 +825,6 @@ else:
                             st.session_state[f"se_res_{day_selected}"] = json.loads(clean_se)
                             save_data_to_file()
                 
-                # Tự động hiển thị lại kết quả bài nói đã lưu
                 if f"se_res_{day_selected}" in st.session_state:
                     ser = st.session_state[f"se_res_{day_selected}"]
                     st.markdown('<div class="hint-card">', unsafe_allow_html=True)
