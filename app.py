@@ -178,7 +178,6 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* ĐỊNH DẠNG TẤT CẢ CÁC NÚT BẤM VÀ SUBMIT BUTTONS NỔI BẬT */
     .stButton>button, 
     .stButton>button *,
     div[data-testid="stFormSubmitButton"] > button,
@@ -440,7 +439,6 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name, seed_key=Non
                 opts = q.get('options', [])
                 key_input = f"q_{tab_key}_{idx}"
                 
-                # Trực tiếp kết nối state mà không cần st.form
                 if key_input not in st.session_state:
                     st.session_state[key_input] = opts[0] if opts else ""
 
@@ -449,7 +447,7 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name, seed_key=Non
                     opt_idx = opts.index(current_val) if current_val in opts else 0
                     st.radio("Select Option:", opts, index=opt_idx, key=key_input)
                 else:
-                    st.text_input("Your Answer:", key=key_input)
+                    st.text_input("Your Answer:", value=st.session_state.get(key_input, ""), key=key_input)
                 st.write("---")
             
             if st.button("Submit & Evaluate Answers", key=f"sub_{tab_key}", use_container_width=True):
@@ -585,7 +583,9 @@ else:
             pgame = f"Generate 5 business vocabulary game questions for topic '{day_topic}'. ALL text MUST be in ENGLISH. Include advanced words beyond the core 10. For Game 1 return 'fill_words' array of objects ('word', 'hint_english'). For Game 2 return 'mcq_words' array of objects ('word', 'options', 'correct_option'). NOTE: 'correct_option' MUST be the exact full text string matching one item in 'options'. Return JSON with keys 'fill_words' and 'mcq_words'."
             g_data = get_or_generate_data(f"g_data_{day_selected}", pgame, seed_key=f"game_day_{day_selected}") or {}
 
-            # FIX GAME 1 (TỰ ĐỘNG BINDING BẰNG STATE TRỰC TIẾP, KHÔNG BỊ TRỐNG CHỮ NÀO)
+            # ============================================================
+            # FIX HOÀN HẢO CHO GAME 1: TỰ ĐỘNG BINDING VALUE TỪ SESSION STATE
+            # ============================================================
             if game_type == "Game 1: Fill in Missing Letters":
                 fill_list = g_data.get("fill_words", [])
                 if fill_list:
@@ -595,10 +595,17 @@ else:
                         st.markdown(f"**Question {idx}:** English Clue: *{gw.get('hint_english')}*")
                         
                         key_g1_in = f"g1_in_{day_selected}_{idx}"
+                        
+                        # Khởi tạo key nếu chưa có
                         if key_g1_in not in st.session_state:
                             st.session_state[key_g1_in] = ""
-                        
-                        st.text_input(f"Word starting with '{f_char}...':", key=key_g1_in)
+
+                        # Ép ô input đọc giá trị trực tiếp từ Session State bằng tham số value=
+                        st.text_input(
+                            f"Word starting with '{f_char}...':", 
+                            value=st.session_state[key_g1_in], 
+                            key=key_g1_in
+                        )
                     
                     if st.button("Check Game 1 Answers", key=f"btn_g1_check_{day_selected}", use_container_width=True):
                         u_g1_ans = {}
@@ -624,7 +631,9 @@ else:
                                 st.markdown(f'<div class="wrong-card">❌ <b>Q{idx}: Incorrect.</b> Your answer: <b>{u_val if u_val else "None"}</b> | Correct answer: <b>{gw.get("word")}</b></div>', unsafe_allow_html=True)
                         st.info(f"🏆 Game 1 Final Score: {g1_score}/{len(fill_list)}")
 
-            # FIX GAME 2
+            # ============================================================
+            # FIX HOÀN HẢO CHO GAME 2
+            # ============================================================
             elif game_type == "Game 2: Definition Matching Quiz":
                 mcq_list = g_data.get("mcq_words", [])
                 if mcq_list:
@@ -766,7 +775,7 @@ else:
                 if key_write_in not in st.session_state:
                     st.session_state[key_write_in] = ""
 
-                u_writing = st.text_area("Draft your executive response (Email/Memo):", key=key_write_in, height=200)
+                u_writing = st.text_area("Draft your executive response (Email/Memo):", value=st.session_state[key_write_in], key=key_write_in, height=200)
 
                 if st.button("Evaluate Writing", key=f"btn_w_eval_{day_selected}"):
                     if u_writing.strip():
