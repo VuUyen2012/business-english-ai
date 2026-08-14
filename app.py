@@ -356,7 +356,12 @@ def generate_ai_response(prompt_input, seed_key=None):
 def extract_json(raw_text):
     if not raw_text: return None
     match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
-    return match.group(1).strip() if match else raw_text.strip()
+    if match:
+        json_str = match.group(1).strip()
+        # Clean control characters inside string literals that break json.loads
+        json_str = re.sub(r'[\x00-\x1F\x7F-\x9F]', ' ', json_str)
+        return json_str
+    return raw_text.strip()
 
 def get_or_generate_data(session_key, prompt_text, seed_key=None):
     if session_key not in st.session_state or not st.session_state[session_key]:
@@ -365,7 +370,7 @@ def get_or_generate_data(session_key, prompt_text, seed_key=None):
             clean = extract_json(raw)
             if clean:
                 try:
-                    st.session_state[session_key] = json.loads(clean)
+                    st.session_state[session_key] = json.loads(clean, strict=False)
                     save_data_to_file()
                 except Exception as e:
                     st.error(f"Data Parsing Error: {e}")
@@ -724,19 +729,27 @@ else:
             p_listen = f"Generate an executive briefing transcript (150-200 words) on '{day_topic}'. Include 5 comprehension questions. Return JSON with keys 'passage' and 'questions' (array of 'id', 'question', 'options', 'answer', 'explanation')."
             render_quiz_system(f"listen_quiz_{day_selected}", p_listen, "Load Listening Briefing", "Listening", seed_key=f"listen_seed_{day_selected}")
 
-        # --- 6. DETAILED WRITING SCENARIO (ĐÃ SỬA VÀ TỰ ĐỘNG TẠO ĐỀ BÀI) ---
+        # --- 6. DETAILED WRITING SCENARIO (SỬA ĐỔI TRIỆT ĐỂ LỖI HIỂN THỊ) ---
         with tab_w:
             st.markdown(f"### ✍️ Detailed Writing Scenario ({day_topic})")
             
-            p_write_prompt = f"Generate a detailed C-suite executive business writing scenario (150-200 words) for Day {day_selected} Topic '{day_topic}' requiring grammar focus '{day_grammar}'. Include: Context, Challenge, and Specific Writing Directives. Return JSON object with key 'scenario' string."
+            p_write_prompt = f"Generate a detailed C-suite executive business writing scenario (150-200 words) for Day {day_selected} Topic '{day_topic}' requiring grammar focus '{day_grammar}'. Include: Context, Challenge, and Specific Writing Directives. Return JSON object with key 'scenario' containing plain text string."
             
+            if st.button("🔄 Generate / Load Writing Scenario", key=f"btn_gen_write_{day_selected}", use_container_width=True):
+                get_or_generate_data(f"w_scen_{day_selected}", p_write_prompt, seed_key=f"write_scen_{day_selected}")
+            
+            # Tự động tải nếu chưa bấm nút
             w_scen_dict = get_or_generate_data(f"w_scen_{day_selected}", p_write_prompt, seed_key=f"write_scen_{day_selected}")
             
-            if w_scen_dict and "scenario" in w_scen_dict:
-                st.markdown('<div class="hint-card">', unsafe_allow_html=True)
-                st.markdown(f"#### 📝 **Executive Briefing & Writing Prompt:**")
-                st.write(w_scen_dict["scenario"])
-                st.markdown('</div>', unsafe_allow_html=True)
+            # Đảm bảo có đề bài mặc định xuất sắc nếu API không trả về
+            default_scen = f"**Executive Writing Briefing ({day_topic}):**\n\nYou are acting as the Chief Strategy Officer (CSO). Following recent board deliberations regarding **{day_topic}**, you must draft an executive summary memo to regional directors.\n\n**Directives:**\n1. Explain key operational performance changes using **{day_grammar}**.\n2. Outline 3 strategic priorities for the upcoming quarter.\n3. Maintain a formal, authoritative, yet collaborative executive tone."
+            
+            scenario_text = w_scen_dict.get("scenario", default_scen) if isinstance(w_scen_dict, dict) else default_scen
+            
+            st.markdown('<div class="hint-card">', unsafe_allow_html=True)
+            st.markdown(f"#### 📝 **Executive Briefing & Writing Prompt:**")
+            st.markdown(scenario_text)
+            st.markdown('</div>', unsafe_allow_html=True)
 
             u_write_key = f"u_write_input_{day_selected}"
             if u_write_key not in st.session_state:
@@ -752,7 +765,7 @@ else:
                         clean_w_eval = extract_json(raw_w_eval)
                         if clean_w_eval:
                             try:
-                                st.session_state[f"w_eval_res_{day_selected}"] = json.loads(clean_w_eval)
+                                st.session_state[f"w_eval_res_{day_selected}"] = json.loads(clean_w_eval, strict=False)
                                 save_data_to_file()
                             except Exception as e:
                                 st.error(f"Error parsing feedback: {e}")
@@ -778,14 +791,20 @@ else:
         # --- 7. DATA-DRIVEN SPEAKING ---
         with tab_s:
             st.markdown(f"### 💬 Data-Driven Executive Speaking ({day_topic})")
-            p_speak_prompt = f"Generate an executive speaking prompt including key business metrics/data points for '{day_topic}'. Return JSON object with key 'speaking_prompt' string."
+            p_speak_prompt = f"Generate an executive speaking prompt including key business metrics/data points for '{day_topic}'. Return JSON object with key 'speaking_prompt' plain text string."
+            
+            if st.button("🔄 Generate / Load Speaking Prompt", key=f"btn_gen_speak_{day_selected}", use_container_width=True):
+                get_or_generate_data(f"s_scen_{day_selected}", p_speak_prompt, seed_key=f"speak_scen_{day_selected}")
+
             s_scen_dict = get_or_generate_data(f"s_scen_{day_selected}", p_speak_prompt, seed_key=f"speak_scen_{day_selected}")
             
-            if s_scen_dict and "speaking_prompt" in s_scen_dict:
-                st.markdown('<div class="hint-card">', unsafe_allow_html=True)
-                st.markdown("#### 🎙️ **Speaking Briefing & Data Prompt:**")
-                st.write(s_scen_dict["speaking_prompt"])
-                st.markdown('</div>', unsafe_allow_html=True)
+            default_speak = f"**Executive Speaking Prompt ({day_topic}):**\n\nDeliver a 2-minute verbal briefing to stakeholders summarizing corporate metrics in **{day_topic}**. Ensure you utilize **{day_grammar}** to emphasize key achievements and future forecasts."
+            speak_text = s_scen_dict.get("speaking_prompt", default_speak) if isinstance(s_scen_dict, dict) else default_speak
+
+            st.markdown('<div class="hint-card">', unsafe_allow_html=True)
+            st.markdown("#### 🎙️ **Speaking Briefing & Data Prompt:**")
+            st.markdown(speak_text)
+            st.markdown('</div>', unsafe_allow_html=True)
 
             u_speak_key = f"u_speak_input_{day_selected}"
             if u_speak_key not in st.session_state:
@@ -801,7 +820,7 @@ else:
                         clean_s_eval = extract_json(raw_s_eval)
                         if clean_s_eval:
                             try:
-                                st.session_state[f"s_eval_res_{day_selected}"] = json.loads(clean_s_eval)
+                                st.session_state[f"s_eval_res_{day_selected}"] = json.loads(clean_s_eval, strict=False)
                                 save_data_to_file()
                             except Exception as e:
                                 st.error(f"Error parsing feedback: {e}")
@@ -878,7 +897,7 @@ Return a JSON object with key 'evaluations' containing an array of 10 objects (o
                         clean_eval_res = extract_json(raw_eval_res)
                         if clean_eval_res:
                             try:
-                                st.session_state[f"trans_eval_res_{day_selected}"] = json.loads(clean_eval_res)
+                                st.session_state[f"trans_eval_res_{day_selected}"] = json.loads(clean_eval_res, strict=False)
                                 save_data_to_file()
                             except Exception as e:
                                 st.error(f"Translation Parsing Error: {e}")
