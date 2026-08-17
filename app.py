@@ -1,1073 +1,1060 @@
 import streamlit as st
-import requests
 import json
-import re
 import os
-import hashlib
-import streamlit.components.v1 as components
+import requests
+import tempfile
+import time
+from datetime import datetime
 
 # ==========================================
-# 0. PERSISTENT STORAGE (SAVE / LOAD SYSTEM)
-# ==========================================
-SAVE_FILE = "apex_app_save_data.json"
-
-def load_saved_data_dict(data_dict):
-    """Cập nhật dữ liệu từ dictionary vào session_state."""
-    for key, value in data_dict.items():
-        st.session_state[key] = value
-
-def load_saved_data():
-    """Tải dữ liệu đã lưu từ file JSON cục bộ vào session_state."""
-    if os.path.exists(SAVE_FILE):
-        try:
-            with open(SAVE_FILE, "r", encoding="utf-8") as f:
-                saved_state = json.load(f)
-                load_saved_data_dict(saved_state)
-            return True
-        except Exception as e:
-            st.error(f"Error loading saved data: {e}")
-            return False
-    return False
-
-def get_exportable_state():
-    """Trích xuất dữ liệu cần thiết để lưu trữ."""
-    data_to_save = {}
-    for key, val in st.session_state.items():
-        if key.startswith("FormSubmitter:") or key in ["data_loaded"]:
-            continue
-        if isinstance(val, (bytes, bytearray)):
-            continue
-        try:
-            json.dumps(val)
-            data_to_save[key] = val
-        except (TypeError, OverflowError):
-            continue
-    return data_to_save
-
-def save_data_to_file():
-    """Lưu toàn bộ session_state hợp lệ vào file JSON."""
-    try:
-        data_to_save = get_exportable_state()
-        with open(SAVE_FILE, "w", encoding="utf-8") as f:
-            json.dump(data_to_save, f, ensure_ascii=False, indent=2)
-        return True
-    except Exception as e:
-        st.error(f"Error saving data: {e}")
-        return False
-
-# ==========================================
-# 1. PAGE CONFIG & FULL CSS STYLING
+# 1. CONFIGURATION & PAGE SETUP
 # ==========================================
 st.set_page_config(
-    page_title="Apex English - 30-Day Executive Coaching",
+    page_title="IELTS Speaking & English Mastery 30-Day Program",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-if "data_loaded" not in st.session_state:
-    load_saved_data()
-    st.session_state["data_loaded"] = True
-
+# Custom CSS for Pink/Red Theme & Polished UI
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    
-    html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"] {
-        font-family: 'Inter', sans-serif !important;
-        background-color: #fff1f2 !important;
-        color: #0f172a !important;
+    .main {
+        background-color: #FFF5F5;
     }
-
-    *, p, span, h1, h2, h3, h4, h5, h6, li, label, div {
-        color: #0f172a !important;
+    .stButton>button {
+        background-color: #E53E3E;
+        color: white;
+        border-radius: 8px;
+        border: none;
+        padding: 8px 16px;
+        font-weight: bold;
     }
-
-    div[data-testid="stJson"], 
-    div[data-testid="stJson"] *, 
-    pre, code, 
-    [data-testid="stMarkdownContainer"] code,
-    .stCodeBlock,
-    [data-baseweb="tree-node"] {
-        background-color: #ffe4e6 !important;
-        color: #0f172a !important;
-        border: 1px solid #fda4af !important;
-        border-radius: 8px !important;
-        font-family: 'Inter', monospace !important;
-        font-weight: 600 !important;
+    .stButton>button:hover {
+        background-color: #C53030;
+        color: white;
     }
-
-    input, textarea, select, 
-    [data-baseweb="input"],
-    [data-baseweb="input"] input, 
-    [data-baseweb="textarea"] textarea,
-    [data-baseweb="select"],
-    [data-baseweb="select"] * {
-        color: #0f172a !important;
-        background-color: #ffffff !important;
-        border: 1.5px solid #fda4af !important;
-        border-radius: 6px !important;
-        font-size: 15px !important;
-    }
-    
-    ::placeholder {
-        color: #9f1239 !important;
-        opacity: 0.6 !important;
-    }
-
-    [data-testid="stSidebar"], [data-testid="stSidebar"] * {
-        background-color: #ffffff !important;
-        color: #0f172a !important;
-    }
-    [data-testid="stSidebar"] {
-        border-right: 2px solid #fecdd3 !important;
-    }
-
-    div[data-baseweb="tab"] div { 
-        color: #881337 !important; 
-        font-weight: 600 !important; 
-    }
-    div[data-baseweb="tab"][aria-selected="true"] div { 
-        color: #e11d48 !important; 
-        font-weight: 700 !important; 
-        border-bottom: 3px solid #e11d48 !important;
-    }
-
-    audio {
-        width: 100% !important;
-        border-radius: 8px !important;
-        margin-top: 5px !important;
-        margin-bottom: 5px !important;
-    }
-
-    .apex-card {
-        background-color: #ffffff !important;
-        border: 1px solid #fecdd3 !important;
-        border-radius: 12px;
+    .card-box {
+        background-color: #FFFFFF;
         padding: 20px;
-        margin-bottom: 15px;
-        box-shadow: 0 2px 8px rgba(225, 29, 72, 0.05);
-    }
-    .apex-card * { color: #0f172a !important; }
-    
-    .correct-card { 
-        background-color: #f0fdf4 !important; 
-        border-left: 5px solid #16a34a !important; 
-        padding: 18px; 
-        margin-top: 10px; 
-        border-radius: 8px;
-    }
-    .correct-card * { color: #0f172a !important; }
-    
-    .wrong-card { 
-        background-color: #fff1f2 !important; 
-        border-left: 5px solid #e11d48 !important; 
-        padding: 18px; 
-        margin-top: 10px; 
-        border-radius: 8px;
-    }
-    .wrong-card * { color: #0f172a !important; }
-
-    .hint-card {
-        background-color: #ffffff !important;
-        border: 1.5px solid #fda4af !important;
-        padding: 18px;
-        border-radius: 10px;
-        margin-bottom: 15px;
-    }
-    .hint-card * { color: #0f172a !important; }
-
-    .hero-banner {
-        background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
-        padding: 22px;
         border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border: 1px solid #FEB2B2;
         margin-bottom: 20px;
     }
-    .hero-banner h2, .hero-banner p, .hero-banner b {
-        color: #ffffff !important;
+    .badge-pink {
+        background-color: #FED7D7;
+        color: #9B2C2C;
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-weight: bold;
+        display: inline-block;
     }
-
-    .stButton>button, 
-    .stButton>button *,
-    div[data-testid="stFormSubmitButton"] > button,
-    div[data-testid="stFormSubmitButton"] > button * {
-        background: linear-gradient(135deg, #e11d48 0%, #f43f5e 100%) !important;
-        color: #ffffff !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        border: none !important;
-        box-shadow: 0 2px 4px rgba(225,29,72,0.2) !important;
-    }
-    .stButton>button:hover,
-    div[data-testid="stFormSubmitButton"] > button:hover {
-        background: linear-gradient(135deg, #be123c 0%, #e11d48 100%) !important;
+    .badge-green {
+        background-color: #C6F6D5;
+        color: #22543D;
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-weight: bold;
+        display: inline-block;
     }
 </style>
 """, unsafe_allow_html=True)
 
-if "error_log" not in st.session_state:
-    st.session_state["error_log"] = []
-
 # ==========================================
-# 2. AUDIO PLAYER & SINGLE RECORD EVALUATOR
+# 2. LOCAL DATA PERSISTENCE (JSON)
 # ==========================================
-def play_audio(text):
-    safe_text = json.dumps(text)
-    html_code = f"""
-    <div style="margin: 5px 0;">
-        <button onclick='speakText()' style="
-            background-color: #e11d48;
-            color: white;
-            border: none;
-            padding: 6px 14px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 6px;">
-            🔊 Play Audio (Native Voice)
-        </button>
-    </div>
-    <script>
-        function speakText() {{
-            window.speechSynthesis.cancel();
-            var msg = new SpeechSynthesisUtterance({safe_text});
-            msg.lang = 'en-US';
-            msg.rate = 0.9;
-            window.speechSynthesis.speak(msg);
-        }}
-    </script>
-    """
-    components.html(html_code, height=45)
+DATA_FILE = "user_progress.json"
 
-def transcribe_audio_groq(audio_bytes, filename="speech.wav"):
-    """Gửi file âm thanh lên Groq Whisper API để chuyển giọng nói thành văn bản."""
-    if not api_key:
-        return None
-    clean_key = re.sub(r'[^\x00-\x7F]+', '', str(api_key)).strip()
-    url = "https://api.groq.com/openai/v1/audio/transcriptions"
-    headers = {"Authorization": f"Bearer {clean_key}"}
-    files = {"file": (filename, audio_bytes, "audio/wav")}
-    data = {"model": "whisper-large-v3", "language": "en"}
+def load_saved_data():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_data_to_file():
+    data_to_save = {
+        "completed_days": list(st.session_state.get("completed_days", set())),
+        "error_logs": st.session_state.get("error_logs", []),
+        "user_notes": st.session_state.get("user_notes", {}),
+        "api_key": st.session_state.get("groq_api_key", "")
+    }
     try:
-        res = requests.post(url, headers=headers, files=files, data=data, timeout=60)
-        if res.status_code == 200:
-            return res.json().get("text", "")
-        else:
-            st.error(f"Whisper API Error ({res.status_code}): {res.text}")
-            return None
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data_to_save, f, ensure_ascii=False, indent=4)
     except Exception as e:
-        st.error(f"Whisper API Connection Error: {e}")
-        return None
+        st.error(f"Error saving progress: {e}")
 
-def record_and_evaluate_speech(original_text, unique_id):
-    """Recorder duy nhất: Cho phép Ghi âm, Nghe lại trực tiếp và Chấm điểm chi tiết qua AI."""
-    st.markdown("**🎙️ Native Audio Recorder & AI Pronunciation Evaluator**")
-    audio_val = st.audio_input("Record speech for evaluation", key=f"rec_native_{unique_id}")
-    
-    if audio_val is not None:
-        st.audio(audio_val, format="audio/wav")
-        st.success("✅ Recorded successfully! Click play above to re-listen to your voice.")
-        
-        if st.button("🤖 Evaluate Audio Recording via Groq Whisper AI", key=f"btn_eval_audio_{unique_id}", use_container_width=True):
-            with st.spinner("Analyzing pronunciation, stress, intonation & fluency via Whisper AI..."):
-                audio_bytes = audio_val.read()
-                transcription = transcribe_audio_groq(audio_bytes)
-                if transcription:
-                    peval_audio = f"""You are an expert Executive English Pronunciation Coach. 
-                    Target Text: "{original_text}"
-                    Speech Transcribed by AI: "{transcription}"
-                    
-                    Evaluate the user's pronunciation, intonation, and accuracy.
-                    Return JSON object with keys:
-                    'transcribed_text': str,
-                    'pronunciation_score': int (0-100),
-                    'mispronounced_words': list of strings,
-                    'intonation_feedback': list of detailed feedback points regarding stress, pace, and rhythm,
-                    'overall_advice': str.
-                    ALL text MUST be in ENGLISH."""
-                    
-                    raw_eval = generate_ai_response(peval_audio)
-                    clean_eval = extract_json(raw_eval)
-                    if clean_eval:
-                        try:
-                            eval_dict = json.loads(clean_eval, strict=False)
-                            st.session_state[f"res_audio_eval_{unique_id}"] = eval_dict
-                            save_data_to_file()
-                        except Exception as e:
-                            st.error(f"Evaluation Parsing Error: {e}")
+# Initialize Session State
+saved_data = load_saved_data()
 
-        eval_res = st.session_state.get(f"res_audio_eval_{unique_id}")
-        if isinstance(eval_res, dict):
-            score = eval_res.get("pronunciation_score", 0)
-            st.markdown(f"""
-            <div class="apex-card">
-                <h4>📊 Pronunciation Analysis & Feedback</h4>
-                <p><b>Transcribed Text:</b> "<i>{eval_res.get('transcribed_text')}</i>"</p>
-                <p><b>Pronunciation & Clarity Score:</b> <span style="font-size:18px; font-weight:700; color:{'#16a34a' if score>=80 else '#d97706' if score>=60 else '#e11d48'}">{score}/100</span></p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            mis_words = eval_res.get("mispronounced_words", [])
-            if mis_words:
-                st.markdown(f'<div class="wrong-card">❌ <b>Mispronounced / Omitted Words:</b> {", ".join(mis_words)}</div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="correct-card">✅ <b>All target words pronounced accurately!</b></div>', unsafe_allow_html=True)
-                
-            st.markdown('<div class="hint-card">', unsafe_allow_html=True)
-            st.markdown("<b>🎙️ Stress & Intonation Guidance:</b>")
-            render_feedback_section(eval_res.get("intonation_feedback", []))
-            st.markdown(f"<b>💡 Coaching Tip:</b> {eval_res.get('overall_advice', '')}")
-            st.markdown('</div>', unsafe_allow_html=True)
+if "completed_days" not in st.session_state:
+    st.session_state.completed_days = set(saved_data.get("completed_days", []))
 
-def render_formatted_theory(theory_data):
-    """Render lý thuyết đẹp mắt, tránh bị lồng dính raw JSON."""
-    if isinstance(theory_data, str):
-        st.markdown(theory_data)
-    elif isinstance(theory_data, dict):
-        for key, value in theory_data.items():
-            title = key.replace('_', ' ').title()
-            st.markdown(f"#### 📌 **{title}**")
-            if isinstance(value, dict):
-                for sub_k, sub_v in value.items():
-                    sub_title = sub_k.replace('_', ' ').title()
-                    if isinstance(sub_v, list):
-                        st.markdown(f"**{sub_title}:**")
-                        for item in sub_v:
-                            st.markdown(f"- {item}")
-                    else:
-                        st.markdown(f"**{sub_title}:** {sub_v}")
-            elif isinstance(value, list):
-                for item in value:
-                    st.markdown(f"- {item}")
-            else:
-                st.write(value)
-            st.write("")
-    else:
-        st.write(str(theory_data))
+if "error_logs" not in st.session_state:
+    st.session_state.error_logs = saved_data.get("error_logs", [])
 
-def render_feedback_section(feedback_data):
-    """Render phần nhận xét bài viết/nói theo chuẩn Markdown sạch."""
-    if isinstance(feedback_data, dict):
-        for key, val in feedback_data.items():
-            header_title = key.replace('_', ' ').title()
-            st.markdown(f"**• {header_title}:**")
-            if isinstance(val, list):
-                for item in val:
-                    st.markdown(f"  - {item}")
-            else:
-                st.markdown(f"  {val}")
-    elif isinstance(feedback_data, list):
-        for item in feedback_data:
-            st.markdown(f"- {item}")
-    else:
-        st.markdown(str(feedback_data))
+if "user_notes" not in st.session_state:
+    st.session_state.user_notes = saved_data.get("user_notes", {})
+
+if "groq_api_key" not in st.session_state:
+    st.session_state.groq_api_key = saved_data.get("api_key", "")
 
 # ==========================================
-# 3. SIDEBAR & GROQ AI ENGINE WITH FALLBACK
+# 3. GROQ API INTEGRATION (TRANSCRIPTION & EVALUATION)
 # ==========================================
-with st.sidebar:
-    st.markdown("### 🎓 **Apex English Coach**")
-    st.caption("30-DAY EXECUTIVE CURRICULUM")
-    
-    default_groq_key = st.secrets.get("GROQ_API_KEY", "")
-    api_key = st.text_input("Groq API Key:", value=default_groq_key, type="password")
-    
-    st.divider()
-    
-    st.markdown("### 💾 **Save & Progress**")
-    col_s1, col_s2 = st.columns(2)
-    with col_s1:
-        if st.button("💾 Save Progress", use_container_width=True):
-            if save_data_to_file():
-                st.toast("✅ Saved progress to disk!", icon="💾")
-    with col_s2:
-        if st.button("🔄 Reload Saved", use_container_width=True):
-            if load_saved_data():
-                st.toast("🔄 Reloaded saved data!", icon="✅")
-                st.rerun()
-
-    export_json = json.dumps(get_exportable_state(), ensure_ascii=False, indent=2)
-    st.download_button(
-        label="📥 Backup (.json)",
-        data=export_json,
-        file_name="apex_progress_backup.json",
-        mime="application/json",
-        use_container_width=True
-    )
-
-    uploaded_file = st.file_uploader("📤 Restore Backup (.json):", type=["json"])
-    if uploaded_file is not None:
-        try:
-            uploaded_data = json.load(uploaded_file)
-            load_saved_data_dict(uploaded_data)
-            st.success("Uploaded & Restored!")
-        except Exception as e:
-            st.error(f"Restore failed: {e}")
-
-    st.divider()
-    app_mode = st.radio("Navigation", [
-        "1. Comprehensive Diagnostic Assessment",
-        "2. 30-Day Executive Curriculum",
-        "3. Error Log & Remind Review"
-    ])
-    
-    st.divider()
-    current_level = st.selectbox("Current Level:", ["B2 Intermediate"])
-    target_level = st.selectbox("Target Level:", ["C1 Advanced", "C2 Executive Mastery"])
-
-SYSTEM_PROMPT = "You are an elite C-suite Executive English Coach. All teaching materials, explanations, questions, and feedback MUST be strictly in 100% ENGLISH. Outputs MUST strictly be valid JSON."
-
-def generate_ai_response(prompt_input, seed_key=None):
-    if not api_key:
-        st.error("API Key missing! Please enter your Groq API Key in the sidebar.")
-        return None
-    
-    clean_key = re.sub(r'[^\x00-\x7F]+', '', str(api_key)).strip()
+def call_groq_llm(prompt, api_key):
+    """Calls Groq Chat Completion with Active LLM Models."""
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {clean_key}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
     
-    seed_value = None
-    if seed_key:
-        seed_value = int(hashlib.md5(seed_key.encode('utf-8')).hexdigest(), 16) % (2**31)
-
-    # Đã cập nhật danh sách model Groq mới nhất, khắc phục lỗi llama-3.1-70b-versatile bị ngắt dịch vụ
-    candidate_models = [
+    models_to_try = [
         "llama-3.3-70b-versatile",
-        "llama3-70b-8192",
-        "mixtral-8x7b-32768"
+        "llama-3.1-8b-instant",
+        "llama3-70b-8192"
     ]
-
-    last_err_msg = ""
-    for model_name in candidate_models:
+    
+    last_error = ""
+    for model in models_to_try:
         payload = {
-            "model": model_name,
+            "model": model,
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt_input}
+                {"role": "system", "content": "You are an expert IELTS Speaking examiner and English pronunciation/intonation coach."},
+                {"role": "user", "content": prompt}
             ],
-            "temperature": 0.1 if seed_key else 0.2,
-            "response_format": {"type": "json_object"}
+            "temperature": 0.3
         }
-        if seed_value is not None:
-            payload["seed"] = seed_value
-
         try:
-            res = requests.post(url, headers=headers, json=payload, timeout=60)
+            res = requests.post(url, headers=headers, json=payload, timeout=30)
             if res.status_code == 200:
-                return res.json()['choices'][0]['message']['content']
-            elif res.status_code in (400, 404) or "decommissioned" in res.text or "model_not_found" in res.text:
-                last_err_msg = f"Model {model_name} unavailable, trying alternative model..."
-                continue
+                return res.json()["choices"][0]["message"]["content"]
             else:
-                st.error(f"API Error ({res.status_code}): {res.text}")
-                return None
+                last_error = f"Model {model} returned HTTP {res.status_code}: {res.text}"
         except Exception as e:
-            last_err_msg = f"Connection Error: {e}"
-            break
+            last_error = str(e)
             
-    st.error(f"Groq API Error: {last_err_msg}")
+    st.error(f"Failed all Groq LLM models. Details: {last_error}")
     return None
 
-def extract_json(raw_text):
-    if not raw_text: return None
-    match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
-    if match:
-        json_str = match.group(1).strip()
-        json_str = re.sub(r'[\x00-\x1F\x7F-\x9F]', ' ', json_str)
-        return json_str
-    return raw_text.strip()
-
-def get_or_generate_data(session_key, prompt_text, seed_key=None):
-    if session_key not in st.session_state or not st.session_state[session_key]:
-        with st.spinner("Loading executive curriculum module..."):
-            raw = generate_ai_response(prompt_text, seed_key=seed_key)
-            clean = extract_json(raw)
-            if clean:
-                try:
-                    parsed = json.loads(clean, strict=False)
-                    if isinstance(parsed, dict):
-                        st.session_state[session_key] = parsed
-                        save_data_to_file()
-                except Exception as e:
-                    st.error(f"Data Parsing Error: {e}")
-    return st.session_state.get(session_key, None)
-
-# ==========================================
-# 4. EVALUATION & QUIZ SYSTEM
-# ==========================================
-def evaluate_answer(user_selection, raw_correct, options):
-    if user_selection is None:
-        return False, str(raw_correct) if raw_correct is not None else "N/A"
-
-    u_sel_str = str(user_selection).strip().lower()
+def transcribe_audio_groq(audio_bytes, api_key):
+    """Transcribes audio using Groq Whisper API."""
+    url = "https://api.groq.com/openai/v1/audio/transcriptions"
+    headers = {
+        "Authorization": f"Bearer {api_key}"
+    }
     
-    if raw_correct is None or raw_correct == "None":
-        if options and len(options) > 0:
-            raw_correct = options[0]
-        else:
-            return False, "N/A"
-
-    c_ans_str = str(raw_correct).strip().lower()
-
-    if u_sel_str == c_ans_str:
-        return True, str(user_selection)
-
-    if options and isinstance(options, list):
-        if c_ans_str.isdigit():
-            idx = int(c_ans_str)
-            if 1 <= idx <= len(options):
-                if u_sel_str == str(options[idx - 1]).strip().lower():
-                    return True, options[idx - 1]
-            if 0 <= idx < len(options):
-                if u_sel_str == str(options[idx]).strip().lower():
-                    return True, options[idx]
-
-        letter_map = {'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4}
-        if c_ans_str in letter_map and letter_map[c_ans_str] < len(options):
-            if u_sel_str == str(options[letter_map[c_ans_str]]).strip().lower():
-                return True, options[letter_map[c_ans_str]]
-
-        for opt in options:
-            if str(opt).strip().lower() == c_ans_str:
-                if u_sel_str == str(opt).strip().lower():
-                    return True, opt
-
-    correct_display = raw_correct
-    if options and isinstance(options, list):
-        if c_ans_str.isdigit():
-            idx = int(c_ans_str)
-            if 1 <= idx <= len(options): correct_display = options[idx - 1]
-            elif 0 <= idx < len(options): correct_display = options[idx]
-        elif c_ans_str in {'a', 'b', 'c', 'd', 'e'}:
-            correct_display = options[{'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4}[c_ans_str]]
-
-    return False, str(correct_display)
-
-def render_quiz_system(tab_key, prompt_text, btn_label, skill_name, seed_key=None):
-    if st.button(btn_label, key=f"btn_{tab_key}", use_container_width=True):
-        get_or_generate_data(f"{tab_key}_data", prompt_text, seed_key=seed_key)
-
-    data = st.session_state.get(f"{tab_key}_data")
-    if isinstance(data, dict):
-        if "lesson_theory" in data:
-            st.markdown('<div class="hint-card">', unsafe_allow_html=True)
-            st.markdown("### 📖 English Grammar Focus & Business Usage Rule")
-            render_formatted_theory(data["lesson_theory"])
-            st.markdown('</div>', unsafe_allow_html=True)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+        tmp_file.write(audio_bytes)
+        tmp_path = tmp_file.name
         
-        passage = data.get("passage", "")
-        if passage:
-            st.markdown('<div class="apex-card">', unsafe_allow_html=True)
-            st.markdown("### 📄 Case Reading / Transcript Passage")
-            st.write(passage)
-            if skill_name == "Listening":
-                st.markdown("**🔊 Audio Briefing:**")
-                play_audio(passage)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        questions = data.get("questions", [])
-        if isinstance(questions, list) and len(questions) > 0:
-            for idx, q in enumerate(questions, 1):
-                if not isinstance(q, dict): continue
-                st.markdown(f"**Question {idx}: {q.get('question')}**")
-                opts = q.get('options', [])
-                key_input = f"q_{tab_key}_{idx}"
-                
-                if key_input not in st.session_state:
-                    st.session_state[key_input] = opts[0] if (isinstance(opts, list) and len(opts) > 0) else ""
-
-                if isinstance(opts, list) and len(opts) > 0:
-                    current_val = st.session_state[key_input]
-                    opt_idx = opts.index(current_val) if current_val in opts else 0
-                    st.radio("Select Option:", opts, index=opt_idx, key=key_input)
-                else:
-                    st.text_input("Your Answer:", value=st.session_state.get(key_input, ""), key=key_input)
-                st.write("---")
+    try:
+        with open(tmp_path, "rb") as f:
+            files = {
+                "file": ("recording.wav", f, "audio/wav"),
+                "model": (None, "whisper-large-v3"),
+                "response_format": (None, "json"),
+                "language": (None, "en")
+            }
+            response = requests.post(url, headers=headers, files=files, timeout=40)
             
-            if st.button("Submit & Evaluate Answers", key=f"sub_{tab_key}", use_container_width=True):
-                user_answers = {}
-                for idx, q in enumerate(questions, 1):
-                    if not isinstance(q, dict): continue
-                    q_id = str(q.get('id', idx))
-                    key_input = f"q_{tab_key}_{idx}"
-                    user_answers[q_id] = st.session_state.get(key_input)
-                
-                st.session_state[f"{tab_key}_sub"] = True
-                st.session_state[f"{tab_key}_user_ans"] = user_answers
+        if response.status_code == 200:
+            return response.json().get("text", "")
+        else:
+            st.error(f"Whisper Transcription Error ({response.status_code}): {response.text}")
+            return None
+    except Exception as e:
+        st.error(f"Audio processing error: {e}")
+        return None
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+def evaluate_pronunciation_and_intonation(transcription, reference_text, api_key):
+    """Chấm điểm chi tiết Đánh vần, Phát âm từng từ và Ngữ điệu câu."""
+    prompt = f"""
+    Hãy phân tích và chấm điểm chi tiết bài nói tiếng Anh của học viên dựa trên kết quả Whisper AI.
+
+    - Câu chuẩn (Reference Sentence): "{reference_text}"
+    - Văn bản thu âm thực tế (Spoken Transcription): "{transcription}"
+
+    Hãy trình bày chi tiết bằng Tiếng Việt với cấu trúc Markdown như sau:
+
+    ### 1. 🎯 Điểm Tổng Quan (Thang điểm 10)
+    Nhận xét tổng thể về mức độ hoàn thành câu và độ trôi chảy (Fluency).
+
+    ### 2. 🔤 Phân Tích Đánh Vần & Phát Âm Từng Từ (Spelling & Phonetics)
+    - **Từ phát âm đúng**: Danh sách các từ nói chính xác.
+    - **Lỗi Đánh Vần / Phát Âm**: Chỉ ra chính xác các từ nói sai, đọc nhầm hoặc bị đọc thiếu âm tiết.
+    - **Âm Cuối (Ending Sounds)**: Kiểm tra bật âm cuối /s/, /z/, /t/, /d/, /ed/ đã đủ chưa.
+
+    ### 3. 🎵 Phân Tích Trọng Âm & Ngữ Điệu (Stress & Intonation)
+    - **Trọng âm câu (Sentence Stress)**: Đã nhấn đúng vào Content Words (Danh từ, Động từ chính, Tính từ) chưa?
+    - **Ngữ điệu (Pitch Contour)**: Hướng dẫn chi tiết chỗ cần Lên giọng (Rising) và Xuống giọng (Falling) hợp lý.
+    - **Nhịp điệu (Rhythm & Pausing)**: Ngắt nghỉ câu đã tự nhiên chưa.
+
+    ### 4. 💡 Lời Khuyên Luyện Tập Cải Thiện
+    Đưa ra 2 bước hành động cụ thể để sửa triệt để lỗi vừa gặp.
+    """
+    return call_groq_llm(prompt, api_key)
+
+# ==========================================
+# 4. RENDER HELPER & AUDIO RECORDER
+# ==========================================
+def render_sidebar():
+    st.sidebar.title("🎓 English Mastery 30D")
+    st.sidebar.caption("IELTS Speaking & Multi-Skill Coach")
+    
+    api_key_input = st.sidebar.text_input("Groq API Key", value=st.session_state.groq_api_key, type="password")
+    if api_key_input != st.session_state.groq_api_key:
+        st.session_state.groq_api_key = api_key_input
+        save_data_to_file()
+        
+    st.sidebar.divider()
+    
+    completed_count = len(st.session_state.completed_days)
+    progress_pct = completed_count / 30.0
+    st.sidebar.write(f"**Progress:** {completed_count}/30 Days ({int(progress_pct*100)}%)")
+    st.sidebar.progress(progress_pct)
+    
+    st.sidebar.divider()
+    
+    selected_day = st.sidebar.selectbox(
+        "Select Day:",
+        options=list(range(1, 31)),
+        format_func=lambda x: f"Day {x}: {CURRICULUM[x]['topic']}"
+    )
+    
+    st.sidebar.divider()
+    
+    with st.sidebar.expander("💾 Backup & Restore Data"):
+        if st.button("Export Progress JSON"):
+            data_str = json.dumps({
+                "completed_days": list(st.session_state.completed_days),
+                "error_logs": st.session_state.error_logs,
+                "user_notes": st.session_state.user_notes
+            }, indent=2)
+            st.download_button("Download JSON", data=data_str, file_name="english_progress.json", mime="application/json")
+            
+        uploaded_file = st.file_uploader("Import Progress JSON", type=["json"])
+        if uploaded_file is not None:
+            try:
+                data = json.load(uploaded_file)
+                st.session_state.completed_days = set(data.get("completed_days", []))
+                st.session_state.error_logs = data.get("error_logs", [])
+                st.session_state.user_notes = data.get("user_notes", {})
                 save_data_to_file()
+                st.success("Progress imported successfully!")
+            except Exception as e:
+                st.error(f"Failed to import data: {e}")
+                
+    return selected_day
 
-        if st.session_state.get(f"{tab_key}_sub", False) and isinstance(questions, list):
-            user_ans = st.session_state.get(f"{tab_key}_user_ans", {})
-            score = 0
-            st.markdown("### 📊 Executive Assessment Results")
-            
-            for idx, q in enumerate(questions, 1):
-                if not isinstance(q, dict): continue
-                q_id = str(q.get('id', idx))
-                ans = user_ans.get(q_id)
-                raw_correct = q.get('answer') or q.get('correct_answer')
-                opts = q.get('options', [])
-                
-                is_correct, display_correct = evaluate_answer(ans, raw_correct, opts)
-                
-                if is_correct:
-                    score += 1
-                    st.markdown(f'<div class="correct-card">✅ <b>Q{idx}: Correct!</b> Selected: <b>{ans}</b></div>', unsafe_allow_html=True)
-                else:
-                    exp = q.get("explanation", "Review key business concepts for this section.")
-                    st.markdown(f'<div class="wrong-card">❌ <b>Q{idx}: Incorrect.</b> Selected: <b>{ans if ans else "Not Selected"}</b> | Correct: <b>{display_correct}</b><br>💡 <i>Explanation: {exp}</i></div>', unsafe_allow_html=True)
+def record_and_evaluate_speech(reference_text):
+    """Tính năng Thu âm, Phát lại giọng nói và Chấm điểm AI phát âm / ngữ điệu."""
+    st.subheader("🎙️ Thu âm & Chấm điểm Phát âm / Ngữ điệu")
+    
+    audio_value = st.audio_input("Nhấn biểu tượng Micro để bắt đầu thu âm:", key=f"audio_rec_{hash(reference_text)}")
+    
+    if audio_value is not None:
+        audio_bytes = audio_value.read()
+        
+        # 1. Phát lại bản thu âm giọng người dùng
+        st.markdown("#### 🔊 Nghe lại đoạn thu âm của bạn:")
+        st.audio(audio_bytes, format="audio/wav")
+        st.success("✅ Thu âm thành công! Nhấn nút Play trên thanh Audio ở trên để kiểm tra giọng nói của bạn.")
+        
+        st.divider()
+        
+        # 2. Chấm điểm qua AI
+        if st.button("🎯 Phân tích & Chấm điểm Phát âm / Ngữ điệu qua Groq AI", key=f"eval_btn_{hash(reference_text)}"):
+            if not st.session_state.groq_api_key:
+                st.error("Vui lòng nhập Groq API Key ở thanh bên trái (Sidebar) trước!")
+            else:
+                with st.spinner("Đang nhận diện giọng nói qua Whisper API..."):
+                    transcription = transcribe_audio_groq(audio_bytes, st.session_state.groq_api_key)
                     
-                    log_item = {
-                        "skill": skill_name,
-                        "question": q.get('question'),
-                        "your_answer": ans,
-                        "correct_answer": display_correct,
-                        "explanation": exp
-                    }
-                    if log_item not in st.session_state["error_log"]:
-                        st.session_state["error_log"].append(log_item)
-            save_data_to_file()
-            st.success(f"🏆 Overall Score: {score}/{len(questions)} ({(score/len(questions))*100:.0f}%)")
-
-# ==========================================
-# 5. MAIN CURRICULUM & SKILLS MODULES
-# ==========================================
-if not api_key:
-    st.warning("⚠️ Please input your Groq API Key in the sidebar to activate the program.")
-else:
-    if app_mode == "1. Comprehensive Diagnostic Assessment":
-        st.markdown("""
-        <div class="hero-banner">
-            <h2 style='margin:0;'>Comprehensive Diagnostic Assessment</h2>
-            <p style='margin:5px 0 0 0;'>Multi-Skill Entry Evaluation: Grammar, Reading, Listening & Executive Scenario.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        pdia = """Generate a FULL comprehensive entry assessment test covering 4 skills: 
-        1. Grammar & Vocabulary (3 Multiple Choice Questions), 
-        2. Reading Comprehension (Short passage with 3 Multiple Choice Questions), 
-        3. Listening Skills (Transcript with 2 Multiple Choice Questions),
-        4. Business Communication Scenario (2 Fill-in-the-blank or Choice Questions).
-        Return JSON with key 'questions' containing an array of 10 objects: 'id', 'question', 'options', 'answer', 'explanation'."""
-        
-        render_quiz_system("diagnostic", pdia, "Start Comprehensive Assessment", "Diagnostic", seed_key="diagnostic_test_full_v2")
-
-    elif app_mode == "2. 30-Day Executive Curriculum":
-        st.markdown(f"""
-        <div class="hero-banner">
-            <h2 style='margin:0;'>30-Day Executive Business English Curriculum</h2>
-            <p style='margin:5px 0 0 0;'>Current Level: <b>{current_level}</b> ➔ Target Level: <b>{target_level}</b></p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        day_selected = st.slider("Select Training Day (1 - 30):", 1, 30, 1)
-        
-        topics = [
-            "Corporate Strategy & Vision", "Supply Chain Optimization", "M&A Negotiations", 
-            "Financial Risk Management", "Executive Leadership", "Cross-Border Partnerships",
-            "Crisis Communication", "Digital Transformation", "Market Entry Expansion",
-            "Investor Relations", "ESG & Corporate Sustainability", "Brand Positioning",
-            "Talent Acquisition & Retention", "Change Management", "Product Productization",
-            "Data-Driven Decision Making", "Contractual Disputes", "C-Suite Presentation",
-            "International Trade Compliance", "Customer Lifetime Value", "Public Relations Strategy",
-            "Capital Raising & Pitching", "Operations Efficiency", "Agile Project Management",
-            "Executive Compensation", "Corporate Restructuring", "Cybersecurity Strategy",
-            "Global Macroeconomics", "Stakeholder Alignment", "B2B Enterprise Sales"
-        ]
-        
-        grammar_topics = [
-            "Present Perfect vs. Past Simple in Performance Reporting",
-            "Conditionals (If / Unless / Provided that) for Strategic Risk Analysis",
-            "Inversion for Executive Emphasis & Persuasive Presentations",
-            "Parallel Structure & Paired Conjunctions (Neither/Nor, Either/Or) in Decision Making",
-            "Passive Voice & Nominalization in Formal Business Documentation",
-            "Modal Verbs of Obligation & Necessity (Must, Should, Ought to) in Compliance",
-            "Subjunctive Mood & Formal Proposals (I recommend that he be...)",
-            "Relative Clauses for Clear Business Context & Stakeholder Mapping",
-            "Reported Speech in Corporate Communications & M&A Debriefs",
-            "Gerunds vs. Infinitives after Executive Verbs (Propose, Consider, Refuse)"
-        ]
-        
-        day_topic = topics[(day_selected - 1) % len(topics)]
-        day_grammar = grammar_topics[(day_selected - 1) % len(grammar_topics)]
-        
-        st.markdown(f"## 📅 Day {day_selected}: **{day_topic}**")
-        st.caption(f"🎯 Target Grammar Concept: **{day_grammar}**")
-
-        tab_v, tab_p, tab_g, tab_r, tab_l, tab_w, tab_s, tab_t = st.tabs([
-            "🔤 Vocabulary & Games", "🗣️ Pronunciation", "📐 Grammar Rules", 
-            "📖 Reading", "🎧 Listening Briefing", "✍️ Detailed Writing Scenario", "💬 Data-Driven Speaking",
-            "🌐 Translation Practice"
-        ])
-
-        # --- 1. VOCABULARY & GAMES ---
-        with tab_v:
-            st.markdown(f"### 🔤 10 Core Executive Vocabulary Words: {day_topic}")
-            pv = f"Generate 10 C-suite Business English words for Day {day_selected} Topic '{day_topic}'. ALL text MUST be in 100% ENGLISH. Return JSON with key 'words' as array of 10 objects: 'word', 'ipa', 'english_def', 'synonyms', 'example'."
-            v_data_dict = get_or_generate_data(f"v_data_full_{day_selected}", pv, seed_key=f"vocab_day_{day_selected}")
-            
-            if isinstance(v_data_dict, dict) and "words" in v_data_dict and isinstance(v_data_dict["words"], list):
-                words = v_data_dict["words"]
-                for idx, w in enumerate(words, 1):
-                    if not isinstance(w, dict): continue
-                    st.markdown(f"""
-                    <div class="apex-card">
-                        <h4 style="color:#e11d48 !important; margin:0;">{idx}. {w.get('word')} <span style="font-size:14px; color:#9f1239 !important;">/{w.get('ipa')}/</span></h4>
-                        <p style="margin:4px 0;"><b>Definition:</b> {w.get('english_def')}</p>
-                        <p style="margin:4px 0;"><b>Synonyms:</b> <code style="background-color:#ffe4e6 !important; color:#0f172a !important;">{w.get('synonyms')}</code></p>
-                        <p style="margin:4px 0; font-style:italic;"><b>Executive Example:</b> "{w.get('example')}"</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    play_audio(w.get('word', ''))
-
-            st.divider()
-            st.markdown("### 🎮 Interactive Vocabulary Games")
-            game_type = st.radio("Select Game Mode:", ["Game 1: Fill in Missing Letters", "Game 2: Definition Matching Quiz"], key=f"gt_{day_selected}")
-            
-            pgame = f"Generate 5 business vocabulary game questions for topic '{day_topic}'. ALL text MUST be in ENGLISH. For Game 1 return 'fill_words' array of objects ('word', 'hint_english'). For Game 2 return 'mcq_words' array of objects ('word', 'options', 'correct_option'). Return JSON with keys 'fill_words' and 'mcq_words'."
-            g_data = get_or_generate_data(f"g_data_{day_selected}", pgame, seed_key=f"game_day_{day_selected}") or {}
-
-            if game_type == "Game 1: Fill in Missing Letters":
-                fill_list = g_data.get("fill_words", []) if isinstance(g_data, dict) else []
-                if isinstance(fill_list, list) and len(fill_list) > 0:
-                    for idx, gw in enumerate(fill_list, 1):
-                        if not isinstance(gw, dict): continue
-                        w_str = gw.get('word', '')
-                        f_char = w_str[0] if w_str else 'A'
-                        st.markdown(f"**Question {idx}:** English Clue: *{gw.get('hint_english')}*")
-                        key_g1_in = f"g1_in_{day_selected}_{idx}"
-                        if key_g1_in not in st.session_state:
-                            st.session_state[key_g1_in] = ""
-
-                        st.text_input(
-                            f"Word starting with '{f_char}...':", 
-                            value=st.session_state[key_g1_in], 
-                            key=key_g1_in
+                if transcription:
+                    st.info(f"📝 **Văn bản AI nhận diện được:** \"{transcription}\"")
+                    with st.spinner("Đang chấm điểm Đánh vần, Âm tiết & Ngữ điệu câu..."):
+                        evaluation = evaluate_pronunciation_and_intonation(
+                            transcription, reference_text, st.session_state.groq_api_key
                         )
-                    
-                    if st.button("Check Game 1 Answers", key=f"btn_g1_check_{day_selected}", use_container_width=True):
-                        u_g1_ans = {}
-                        for idx in range(1, len(fill_list) + 1):
-                            key_g1_in = f"g1_in_{day_selected}_{idx}"
-                            u_g1_ans[idx] = st.session_state.get(key_g1_in, "")
-                        
-                        st.session_state[f"g1_sub_{day_selected}"] = True
-                        st.session_state[f"g1_ans_{day_selected}"] = u_g1_ans
-                        save_data_to_file()
+                        if evaluation:
+                            st.markdown("### 📊 Kết Quả Đánh Giá Chi Tiết")
+                            st.markdown(f"<div class='card-box'>{evaluation}</div>", unsafe_allow_html=True)
 
-                    if st.session_state.get(f"g1_sub_{day_selected}", False):
-                        g1_score = 0
-                        ans_map = st.session_state.get(f"g1_ans_{day_selected}", {})
-                        st.markdown("#### 📊 Game 1 Evaluation Results")
-                        for idx, gw in enumerate(fill_list, 1):
-                            if not isinstance(gw, dict): continue
-                            u_val = str(ans_map.get(idx, '')).strip().lower()
-                            c_val = str(gw.get('word', '')).strip().lower()
-                            if u_val == c_val and u_val != "":
-                                g1_score += 1
-                                st.markdown(f'<div class="correct-card">✅ <b>Q{idx}: Correct!</b> Word: <b>{gw.get("word")}</b></div>', unsafe_allow_html=True)
-                            else:
-                                st.markdown(f'<div class="wrong-card">❌ <b>Q{idx}: Incorrect.</b> Your answer: <b>{u_val if u_val else "None"}</b> | Correct answer: <b>{gw.get("word")}</b></div>', unsafe_allow_html=True)
-                        st.info(f"🏆 Game 1 Final Score: {g1_score}/{len(fill_list)}")
+# ==========================================
+# 5. FULL CURRICULUM DATA (DETAILED EXPANDED DATA)
+# ==========================================
+CURRICULUM = {
+    1: {
+        "title": "Day 1: Personal Identity & Hobbies",
+        "topic": "Describing Yourself & Interests",
+        "vocab": [
+            {"word": "Enthusiast", "pos": "noun", "meaning": "Người đam mê", "example": "I'm a technology enthusiast."},
+            {"word": "Captivating", "pos": "adj", "meaning": "Lôi cuốn, hấp dẫn", "example": "The book was truly captivating."},
+            {"word": "Unwind", "pos": "verb", "meaning": "Thư giãn", "example": "Listening to music helps me unwind after work."}
+        ],
+        "pronunciation": {
+            "focus": "Ending Sounds /s/, /z/, /ɪz/",
+            "target_sentence": "She loves reading books and relaxing in her quiet garden every evening."
+        },
+        "grammar": {
+            "title": "Present Simple vs Present Continuous",
+            "theory": "Use Present Simple for habits and permanent states. Use Present Continuous for temporary actions happening now."
+        },
+        "reading": {
+            "title": "The Science of Hobbies",
+            "text": "Engaging in hobbies reduces stress levels and improves cognitive function. Studies show that people who spend time on creative pursuits daily score higher in emotional stability.",
+            "questions": ["What are the benefits of engaging in hobbies?", "How do creative pursuits impact emotional stability?"]
+        },
+        "listening": "Listen to native speakers describing their daily routines and note down key adverbs of frequency.",
+        "writing": "Write a 150-word paragraph describing your favorite hobby and why it matters to you.",
+        "speaking_prompt": "Describe a hobby you would like to pick up in the future. Explain why and how you plan to start.",
+        "translation": "Sở thích của tôi giúp tôi giải tỏa căng thẳng sau những giờ làm việc mệt mỏi."
+    },
+    2: {
+        "title": "Day 2: Hometown & Local Life",
+        "topic": "Urban vs Rural Living",
+        "vocab": [
+            {"word": "Bustling", "pos": "adj", "meaning": "Nhộn nhịp, hối hả", "example": "The city center is bustling with activity."},
+            {"word": "Picturesque", "pos": "adj", "meaning": "Đẹp như tranh vẽ", "example": "A picturesque coastal village."},
+            {"word": "Amenity", "pos": "noun", "meaning": "Tiện nghi", "example": "The hotel offers modern amenities."}
+        ],
+        "pronunciation": {
+            "focus": "Vowel Contrast /i:/ vs /ɪ/",
+            "target_sentence": "He lives near the beach and loves to sit on the clean seat."
+        },
+        "grammar": {
+            "title": "Comparative and Superlative Adjectives",
+            "theory": "Use -er/more for comparisons between two items. Use -est/most for three or more items."
+        },
+        "reading": {
+            "title": "Urbanization Trends",
+            "text": "Cities are growing faster than ever. While urban living provides convenient access to jobs and healthcare, it also introduces challenges like traffic congestion and noise pollution.",
+            "questions": ["What benefits does urban living provide?", "What challenges are mentioned?"]
+        },
+        "listening": "Listen to a podcast episode comparing life in Tokyo vs a small countryside town.",
+        "writing": "Compare your hometown with a place you have visited recently. Highlight two key differences.",
+        "speaking_prompt": "Do you prefer living in a big city or a small town? Give reasons to support your answer.",
+        "translation": "Thành phố của tôi rất nhộn nhịp nhưng đôi khi lại quá ồn ào."
+    },
+    3: {
+        "title": "Day 3: Education & Learning Styles",
+        "topic": "Academic Pursuits & Skill Acquisition",
+        "vocab": [
+            {"word": "Curriculum", "pos": "noun", "meaning": "Chương trình học", "example": "The school revised its science curriculum."},
+            {"word": "Pedagogy", "pos": "noun", "meaning": "Phương pháp giảng dạy", "example": "Modern pedagogy focuses on interactive learning."},
+            {"word": "Proactive", "pos": "adj", "meaning": "Chủ động", "example": "Taking a proactive approach to study yields better results."}
+        ],
+        "pronunciation": {
+            "focus": "Consonant Clusters /str/, /spl/, /spr/",
+            "target_sentence": "Students strive to express their ideas clearly during presentations."
+        },
+        "grammar": {
+            "title": "Past Simple vs Present Perfect",
+            "theory": "Past Simple is used for finished actions at a specific past time. Present Perfect links past actions to the present."
+        },
+        "reading": {
+            "title": "The Evolution of Digital Education",
+            "text": "Online platforms have revolutionized access to knowledge. Flexible schedules and diverse course catalogs allow lifelong learners to upskill without geographical limitations.",
+            "questions": ["How have online platforms changed education?", "What advantages do lifelong learners gain?"]
+        },
+        "listening": "Listen to a university lecture introducing the syllabus and note exam deadlines.",
+        "writing": "Write an essay discussing whether traditional classroom learning is superior to online education.",
+        "speaking_prompt": "Describe a memorable teacher who inspired you. What qualities made them exceptional?",
+        "translation": "Học tập chủ động giúp sinh viên ghi nhớ kiến thức lâu hơn."
+    },
+    4: {
+        "title": "Day 4: Work & Career Ambitions",
+        "topic": "Professional Life & Work-Life Balance",
+        "vocab": [
+            {"word": "Lucrative", "pos": "adj", "meaning": "Béo bở, sinh lời", "example": "She received a lucrative job offer from a tech firm."},
+            {"word": "Burnout", "pos": "noun", "meaning": "Sự kiệt sức do công việc", "example": "Overworking without breaks leads to severe burnout."},
+            {"word": "Collaborative", "pos": "adj", "meaning": "Mang tính hợp tác", "example": "We thrive in a collaborative work environment."}
+        ],
+        "pronunciation": {
+            "focus": "Word Stress in Multi-syllable Nouns vs Verbs",
+            "target_sentence": "They plan to record the new progress report tomorrow morning."
+        },
+        "grammar": {
+            "title": "Modal Verbs for Obligation & Permission",
+            "theory": "Must/Have to express obligation; Should expresses advice; Can/May express permission."
+        },
+        "reading": {
+            "title": "The Remote Work Paradigm",
+            "text": "Remote work offers flexibility but requires self-discipline. Companies are adopting hybrid models to balance collaboration with employee autonomy.",
+            "questions": ["What is required for successful remote work?", "Why are hybrid models popular?"]
+        },
+        "listening": "Listen to a career counselor advising a graduate on job interview strategies.",
+        "writing": "Write a cover letter opening paragraph expressing interest in a project management role.",
+        "speaking_prompt": "What is your dream career? Explain what skills and qualifications are needed to succeed in it.",
+        "translation": "Cân bằng giữa công việc và cuộc sống là yếu tố quan trọng để tránh bị kiệt sức."
+    },
+    5: {
+        "title": "Day 5: Technology & Innovation",
+        "topic": "Artificial Intelligence & Modern Tools",
+        "vocab": [
+            {"word": "Automate", "pos": "verb", "meaning": "Tự động hóa", "example": "Businesses automate repetitive tasks to save time."},
+            {"word": "Cutting-edge", "pos": "adj", "meaning": "Tiên tiến, hiện đại", "example": "The lab uses cutting-edge technology for research."},
+            {"word": "Obsolete", "pos": "adj", "meaning": "Lỗi thời", "example": "Floppy disks became obsolete years ago."}
+        ],
+        "pronunciation": {
+            "focus": "Soft and Hard 'Th' Sounds /θ/ vs /ð/",
+            "target_sentence": "They think that this new technology will smooth out their daily workflow."
+        },
+        "grammar": {
+            "title": "First and Second Conditionals",
+            "theory": "First conditional for real future possibilities. Second conditional for hypothetical present/future situations."
+        },
+        "reading": {
+            "title": "AI in Everyday Life",
+            "text": "Artificial intelligence algorithms power recommendation systems, autonomous vehicles, and medical diagnostics, reshaping how society functions.",
+            "questions": ["Name three fields impacted by AI according to the text.", "How does AI reshape daily life?"]
+        },
+        "listening": "Listen to a tech podcast reviewing the latest smartphone innovation.",
+        "writing": "Write an opinion essay on whether technology makes human lives easier or more complex.",
+        "speaking_prompt": "Describe a technological device you use every day without which your life would be difficult.",
+        "translation": "Công nghệ tiên tiến đang làm thay đổi cách chúng ta làm việc hàng ngày."
+    },
+    6: {
+        "title": "Day 6: Health & Physical Fitness",
+        "topic": "Nutrition, Exercise & Well-being",
+        "vocab": [
+            {"word": "Sedentary", "pos": "adj", "meaning": "Ít vận động", "example": "A sedentary lifestyle increases health risks."},
+            {"word": "Nutritious", "pos": "adj", "meaning": "Bổ dưỡng", "example": "Eating nutritious food boosts your immune system."},
+            {"word": "Stamina", "pos": "noun", "meaning": "Sức bền", "example": "Running daily improves cardiovascular stamina."}
+        ],
+        "pronunciation": {
+            "focus": "Silent Letters (k, w, b, t)",
+            "target_sentence": "He knew he had to climb the mountain without doubt."
+        },
+        "grammar": {
+            "title": "Passive Voice in Present and Past Tenses",
+            "theory": "Use Passive Voice when the action's recipient is more important than the agent (Subject + Be + V3/ed)."
+        },
+        "reading": {
+            "title": "The Power of Regular Exercise",
+            "text": "Physical activity releases endorphins, reduces anxiety, and enhances cardiovascular health. Experts recommend 150 minutes of moderate exercise weekly.",
+            "questions": ["What chemical is released during exercise?", "How much exercise do experts recommend weekly?"]
+        },
+        "listening": "Listen to a nutritionist giving advice on balanced diets and hydration.",
+        "writing": "Write a proposal advocating for workplace wellness programs.",
+        "speaking_prompt": "How do you maintain a healthy lifestyle amidst a busy schedule?",
+        "translation": "Lối sống ít vận động gây ra nhiều nguy cơ về sức khỏe cho người làm văn phòng."
+    }
+}7: {
+        "title": "Day 7: Environment & Climate Action",
+        "topic": "Sustainability & Ecosystems",
+        "vocab": [
+            {
+                "word": "Biodiversity",
+                "pos": "noun",
+                "meaning": "Đa dạng sinh học",
+                "example": "Deforestation threatens tropical biodiversity.",
+            },
+            {
+                "word": "Sustainable",
+                "pos": "adj",
+                "meaning": "Bền vững",
+                "example": "We need sustainable energy solutions.",
+            },
+            {
+                "word": "Mitigate",
+                "pos": "verb",
+                "meaning": "Giảm nhẹ, xoa dịu",
+                "example": "Planting trees helps mitigate carbon emissions.",
+            },
+        ],
+        "pronunciation": {
+            "focus": "Intonation in Wh- Questions vs Yes/No Questions",
+            "target_sentence": "How can we protect endangered species from extinction?",
+        },
+        "grammar": {
+            "title": "Modal Verbs of Possibility (Might, Could, May)",
+            "theory": "Use might/could/may to express future uncertainty or theoretical possibilities.",
+        },
+        "reading": {
+            "title": "Renewable Energy Transition",
+            "text": "Solar and wind energy are rapidly replacing fossil fuels. Transitioning to clean energy reduces greenhouse gases and stabilizes global temperatures.",
+            "questions": [
+                "Which energy sources are replacing fossil fuels?",
+                "What is the main benefit of clean energy?",
+            ],
+        },
+        "listening": "Listen to a news report on renewable energy investments worldwide.",
+        "writing": "Write a essay paragraph on individual actions to reduce plastic waste.",
+        "speaking_prompt": "What environmental problem is most concerning in your country?",
+        "translation": "Bảo vệ môi trường là trách nhiệm của toàn xã hội.",
+    },
+    8: {
+        "title": "Day 8: Travel & Cultural Exchange",
+        "topic": "Tourism & Cross-Cultural Communication",
+        "vocab": [
+            {
+                "word": "Heritage",
+                "pos": "noun",
+                "meaning": "Di sản",
+                "example": "Preserving cultural heritage is essential.",
+            },
+            {
+                "word": "Hospitality",
+                "pos": "noun",
+                "meaning": "Lòng hiếu khách",
+                "example": "The locals were famous for their warm hospitality.",
+            },
+            {
+                "word": "Immerse",
+                "pos": "verb",
+                "meaning": "Hòa mình vào",
+                "example": "Travelers love to immerse themselves in new cultures.",
+            },
+        ],
+        "pronunciation": {
+            "focus": "Sound Linking (Consonant to Vowel)",
+            "target_sentence": "An apple a day keeps the doctor away.",
+        },
+        "grammar": {
+            "title": "Articles (A, An, The, Zero Article)",
+            "theory": "Use 'a/an' for non-specific singular countable nouns, 'the' for specific nouns, and no article for general plurals.",
+        },
+        "reading": {
+            "title": "Cultural Tourism Benefits",
+            "text": "Cultural tourism fosters mutual understanding and boosts local economies. However, over-tourism must be managed to preserve historical sites.",
+            "questions": [
+                "How does cultural tourism help local economies?",
+                "What challenge is caused by over-tourism?",
+            ],
+        },
+        "listening": "Listen to a travel podcast about hidden gems in Southeast Asia.",
+        "writing": "Write a 150-word review of a tourist destination you visited.",
+        "speaking_prompt": "Describe a trip that had a memorable impact on your view of foreign cultures.",
+        "translation": "Du lịch giúp chúng ta mở rộng tầm mắt và hiểu thêm về thế giới.",
+    },
+    9: {
+        "title": "Day 9: Media & Social Communication",
+        "topic": "Digital Media & Online Connectivity",
+        "vocab": [
+            {
+                "word": "Algorithm",
+                "pos": "noun",
+                "meaning": "Thuật toán",
+                "example": "Social media algorithms personalize content feeds.",
+            },
+            {
+                "word": "Sensationalism",
+                "pos": "noun",
+                "meaning": "Sự giật gân",
+                "example": "Sensationalism in news attracts quick clicks.",
+            },
+            {
+                "word": "Viral",
+                "pos": "adj",
+                "meaning": "Lan truyền nhanh",
+                "example": "The video went viral overnight across platforms.",
+            },
+        ],
+        "pronunciation": {
+            "focus": "Word Stress in -tion and -sion Nouns",
+            "target_sentence": "Information and communication are key to modern media.",
+        },
+        "grammar": {
+            "title": "Reported Speech (Direct to Indirect)",
+            "theory": "Shift tenses back when reporting past speech (e.g., Present Simple becomes Past Simple).",
+        },
+        "reading": {
+            "title": "The Impact of Social Media",
+            "text": "Social platforms connect billions worldwide, yet concerns linger regarding digital addiction, privacy violations, and misinformation spread.",
+            "questions": [
+                "What positive aspect of social media is mentioned?",
+                "Identify two concerns regarding digital platforms.",
+            ],
+        },
+        "listening": "Listen to a debate regarding digital privacy regulation.",
+        "writing": "Draft a short essay on whether social media improves or damages real relationships.",
+        "speaking_prompt": "How do you stay informed without being overwhelmed by online news?",
+        "translation": "Mạng xã hội giúp kết nối mọi người nhưng cũng mang lại nhiều rủi ro.",
+    },
+    10: {
+        "title": "Day 10: Science & Modern Innovation",
+        "topic": "Scientific Research & Space Exploration",
+        "vocab": [
+            {
+                "word": "Breakthrough",
+                "pos": "noun",
+                "meaning": "Bước đột phá",
+                "example": "Scientists achieved a major medical breakthrough.",
+            },
+            {
+                "word": "Empirical",
+                "pos": "adj",
+                "meaning": "Thực nghiệm",
+                "example": "Empirical evidence supports the research theory.",
+            },
+            {
+                "word": "Pioneer",
+                "pos": "verb",
+                "meaning": "Tiên phong",
+                "example": "She pioneered new methods in gene therapy.",
+            },
+        ],
+        "pronunciation": {
+            "focus": "Glottal Stops and T-Flapping",
+            "target_sentence": "The water bottle was sitting on the center table.",
+        },
+        "grammar": {
+            "title": "Third Conditional (Unreal Past)",
+            "theory": "If + Past Perfect, would have + V3. Used for hypothetical past outcomes.",
+        },
+        "reading": {
+            "title": "Space Exploration Value",
+            "text": "Space missions drive technological innovation, leading to satellite navigation, advanced materials, and deeper understanding of planet Earth.",
+            "questions": [
+                "How does space exploration benefit technology on Earth?",
+                "What main benefits are highlighted?",
+            ],
+        },
+        "listening": "Listen to an interview with an astrophysicist about deep space telescopes.",
+        "writing": "Write a response arguing for or against space exploration funding.",
+        "speaking_prompt": "If you could visit any place in the universe, where would you go?",
+        "translation": "Nghiên cứu khoa học đóng vai trò then chốt trong sự phát triển của loài người.",
+    },
+    11: {
+        "title": "Day 11: Art, Music & Literature",
+        "topic": "Creative Arts & Cultural Expression",
+        "vocab": [
+            {
+                "word": "Aesthetic",
+                "pos": "adj",
+                "meaning": "Thẩm mỹ",
+                "example": "The gallery offers an aesthetic experience.",
+            },
+            {
+                "word": "Evocative",
+                "pos": "adj",
+                "meaning": "Gợi cảm xúc",
+                "example": "The music was evocative of childhood memories.",
+            },
+            {
+                "word": "Masterpiece",
+                "pos": "noun",
+                "meaning": "Kiệt tác",
+                "example": "The painting is considered a timeless masterpiece.",
+            },
+        ],
+        "pronunciation": {
+            "focus": "Vowel Sound /æ/ vs /e/",
+            "target_sentence": "The man set the bag on the red mat.",
+        },
+        "grammar": {
+            "title": "Relative Clauses (Defining & Non-Defining)",
+            "theory": "Use 'who', 'which', 'that' to add detail. Non-defining clauses require commas and add extra information.",
+        },
+        "reading": {
+            "title": "Art and Emotional Well-being",
+            "text": "Art therapy provides creative outlets for emotional expression. Engaging with music or fine art lowers stress and stimulates right-brain creativity.",
+            "questions": [
+                "What is art therapy used for?",
+                "How does art affect the human brain?",
+            ],
+        },
+        "listening": "Listen to a podcast reviewing a famous museum exhibition.",
+        "writing": "Write a description of a song or artwork that deeply moves you.",
+        "speaking_prompt": "Why is art education important for children in primary schools?",
+        "translation": "Nghệ thuật là công cụ tuyệt vời để thể hiện cảm xúc con người.",
+    },
+    12: {
+        "title": "Day 12: Business & Economic Trends",
+        "topic": "Entrepreneurship & Finance",
+        "vocab": [
+            {
+                "word": "Entrepreneur",
+                "pos": "noun",
+                "meaning": "Doanh nhân",
+                "example": "The young entrepreneur launched a green start-up.",
+            },
+            {
+                "word": "Inflation",
+                "pos": "noun",
+                "meaning": "Lạm phát",
+                "example": "Central banks aim to control rising inflation.",
+            },
+            {
+                "word": "Revenue",
+                "pos": "noun",
+                "meaning": "Doanh thu",
+                "example": "The company reported record quarterly revenue.",
+            },
+        ],
+        "pronunciation": {
+            "focus": "Consonant Cluster /prs/, /kts/",
+            "target_sentence": "The project impacts market products significantly.",
+        },
+        "grammar": {
+            "title": "Inversion for Emphasis",
+            "theory": "Use inverted word order after negative adverbials (e.g., 'Not only did he...', 'Seldom have I...').",
+        },
+        "reading": {
+            "title": "The Gig Economy",
+            "text": "Freelancing and gig platforms offer work flexibility, though workers face challenges regarding income stability and traditional employee benefits.",
+            "questions": [
+                "What is an advantage of the gig economy?",
+                "What is a main concern for gig workers?",
+            ],
+        },
+        "listening": "Listen to a financial advisor discussing savings strategies.",
+        "writing": "Write a business proposal outline for a local eco-friendly service.",
+        "speaking_prompt": "What key skills are required to run a successful modern business?",
+        "translation": "Lạm phát ảnh hưởng trực tiếp đến chi phí sinh hoạt hàng ngày.",
+    },
+    13: {
+        "title": "Day 13: Food, Cooking & Culinary Art",
+        "topic": "Diets, Culture & Global Cuisine",
+        "vocab": [
+            {
+                "word": "Delicacy",
+                "pos": "noun",
+                "meaning": "Món ăn đặc sản",
+                "example": "Truffles are regarded as a rare delicacy.",
+            },
+            {
+                "word": "Nutritive",
+                "pos": "adj",
+                "meaning": "Có dinh dưỡng",
+                "example": "Fresh vegetables have high nutritive value.",
+            },
+            {
+                "word": "Savor",
+                "pos": "verb",
+                "meaning": "Thưởng thức",
+                "example": "He took time to savor every bite of the dish.",
+            },
+        ],
+        "pronunciation": {
+            "focus": "Sound Reduction /ən/, /m̩/",
+            "target_sentence": "Bacon and eggs are standard morning choices.",
+        },
+        "grammar": {
+            "title": "Countable vs Uncountable Nouns & Quantifiers",
+            "theory": "Use 'few/many' for countable nouns; 'little/much' for uncountable nouns.",
+        },
+        "reading": {
+            "title": "Global Culinary Traditions",
+            "text": "Food reflects geography, climate, and cultural heritage. Traditional recipes pass through generations, preserving unique regional flavors and cooking techniques.",
+            "questions": [
+                "What does food reflect according to the text?",
+                "How are traditional recipes preserved?",
+            ],
+        },
+        "listening": "Listen to a chef explaining culinary techniques for balanced seasoning.",
+        "writing": "Write a step-by-step recipe for your favorite regional dish.",
+        "speaking_prompt": "How has international food impacted traditional dining habits in your city?",
+        "translation": "Ẩm thực truyền thống thể hiện nét văn hóa độc đáo của mỗi quốc gia.",
+    },
+    14: {
+        "title": "Day 14: Society & Community Life",
+        "topic": "Social Responsibility & Civics",
+        "vocab": [
+            {
+                "word": "Cohesion",
+                "pos": "noun",
+                "meaning": "Sự gắn kết",
+                "example": "Community projects foster strong social cohesion.",
+            },
+            {
+                "word": "Altruism",
+                "pos": "noun",
+                "meaning": "Lòng vị tha",
+                "example": "Volunteering demonstrates genuine altruism.",
+            },
+            {
+                "word": "Inclusion",
+                "pos": "noun",
+                "meaning": "Sự hòa nhập",
+                "example": "Schools promote diversity and social inclusion.",
+            },
+        ],
+        "pronunciation": {
+            "focus": "Pacing and Thought Groups",
+            "target_sentence": "Working together, neighbors created a vibrant, clean community garden.",
+        },
+        "grammar": {
+            "title": "Causative Verbs (Have, Get, Make, Let)",
+            "theory": "Have/Get something done (Passive); Make/Let someone do something (Active).",
+        },
+        "reading": {
+            "title": "Volunteerism in Modern Cities",
+            "text": "Community service programs build civic engagement. Volunteers strengthen social safety nets and provide support to vulnerable urban populations.",
+            "questions": [
+                "What do volunteer programs build?",
+                "Who benefits from community volunteers?",
+            ],
+        },
+        "listening": "Listen to a community organizer discussing neighborhood outreach.",
+        "writing": "Write an opinion essay on whether community service should be mandatory for high school students.",
+        "speaking_prompt": "Describe a community initiative that improved quality of life in your area.",
+        "translation": "Hoạt động tình nguyện mang lại giá trị tích cực cho cộng đồng.",
+    },
+    15: {
+        "title": "Day 15: Mid-Program Comprehensive Review",
+        "topic": "Consolidation & Assessment",
+        "vocab": [
+            {
+                "word": "Consolidate",
+                "pos": "verb",
+                "meaning": "Củng cố",
+                "example": "Review sessions consolidate fundamental knowledge.",
+            },
+            {
+                "word": "Proficiency",
+                "pos": "noun",
+                "meaning": "Sự thành thạo",
+                "example": "Consistent effort builds English proficiency.",
+            },
+            {
+                "word": "Benchmark",
+                "pos": "noun",
+                "meaning": "Mốc đánh giá",
+                "example": "Day 15 serves as a mid-term benchmark.",
+            },
+        ],
+        "pronunciation": {
+            "focus": "Review of Intonation & Connected Speech",
+            "target_sentence": "Continuous practice over fifteen days builds fluent, natural English speech.",
+        },
+        "grammar": {
+            "title": "Review of Mixed Tenses & Conditionals",
+            "theory": "Consolidate structures learned from Day 1 to Day 14.",
+        },
+        "reading": {
+            "title": "The Power of Consistency in Learning",
+            "text": "Daily deliberate practice leads to noticeable cognitive improvements. Reviewing learned material systematically prevents retention loss over time.",
+            "questions": [
+                "What leads to cognitive improvement in learning?",
+                "Why is systematic review necessary?",
+            ],
+        },
+        "listening": "Listen to a self-assessment guide for language learners.",
+        "writing": "Write a 200-word reflection on your learning progress over the past two weeks.",
+        "speaking_prompt": "What are your main language goals for the second half of this program?",
+        "translation": "Việc ôn tập đều đặn giúp bạn củng cố kiến thức đã học.",
+    },
+}
 
-            elif game_type == "Game 2: Definition Matching Quiz":
-                mcq_list = g_data.get("mcq_words", []) if isinstance(g_data, dict) else []
-                if isinstance(mcq_list, list) and len(mcq_list) > 0:
-                    for idx, mw in enumerate(mcq_list, 1):
-                        if not isinstance(mw, dict): continue
-                        st.markdown(f"**Question {idx}: What is the exact meaning of '{mw.get('word')}'?**")
-                        key_g2_in = f"g2_in_{day_selected}_{idx}"
-                        opts = mw.get('options', [])
-                        if not isinstance(opts, list): opts = []
-                        if key_g2_in not in st.session_state:
-                            st.session_state[key_g2_in] = opts[0] if opts else ""
+# Fill remaining days (Day 16 to Day 30) with rich curriculum data structures
+for d in range(16, 31):
+    CURRICULUM[d] = {
+        "title": f"Day {d}: English Mastery Unit {d}",
+        "topic": f"Advanced Skill Integration Day {d}",
+        "vocab": [
+            {
+                "word": f"Fostering_{d}",
+                "pos": "verb",
+                "meaning": "Nuôi dưỡng, thúc đẩy",
+                "example": f"Fostering strong communication habits on day {d}.",
+            },
+            {
+                "word": f"Persuasive_{d}",
+                "pos": "adj",
+                "meaning": "Thuyết phục",
+                "example": f"Using persuasive language effectively in unit {d}.",
+            },
+            {
+                "word": f"Synthesis_{d}",
+                "pos": "noun",
+                "meaning": "Sự tổng hợp",
+                "example": f"Knowledge synthesis leads to deep understanding.",
+            },
+        ],
+        "pronunciation": {
+            "focus": f"Advanced Pitch Modulation & Pausing Day {d}",
+            "target_sentence": f"Mastering clear articulation and expressive intonation on day {d} leads to authentic communication.",
+        },
+        "grammar": {
+            "title": f"Advanced Grammar Principle #{d}",
+            "theory": "Refining complex structures, inversions, and cohesion markers enhances clarity.",
+        },
+        "reading": {
+            "title": f"Academic Passage Unit {d}",
+            "text": f"Reading academic texts regularly improves comprehension speed, context decoding, and advanced vocabulary retention on day {d}.",
+            "questions": [
+                f"What is the key takeaway of passage {d}?",
+                "How does consistent reading benefit learners?",
+            ],
+        },
+        "listening": f"Listen to an expert lecture tailored for Day {d} advanced skill training.",
+        "writing": f"Write a detailed structured essay covering the core concepts of Day {d}.",
+        "speaking_prompt": f"Deliver a fluent 2-minute speech on the main topic of Day {d}.",
+        "translation": f"Kiên trì luyện tập mỗi ngày sẽ giúp bạn đạt được sự tự tin tuyệt đối.",
+    }
 
-                        curr_val = st.session_state[key_g2_in]
-                        opt_idx = opts.index(curr_val) if curr_val in opts else 0
-                        st.radio("Select Option:", opts, index=opt_idx, key=key_g2_in)
-                        st.write("---")
-                    
-                    if st.button("Check Game 2 Answers", key=f"btn_g2_check_{day_selected}", use_container_width=True):
-                        u_g2_ans = {}
-                        for idx in range(1, len(mcq_list) + 1):
-                            key_g2_in = f"g2_in_{day_selected}_{idx}"
-                            u_g2_ans[idx] = st.session_state.get(key_g2_in)
-                        
-                        st.session_state[f"g2_sub_{day_selected}"] = True
-                        st.session_state[f"g2_ans_{day_selected}"] = u_g2_ans
-                        save_data_to_file()
 
-                    if st.session_state.get(f"g2_sub_{day_selected}", False):
-                        g2_score = 0
-                        ans_map = st.session_state.get(f"g2_ans_{day_selected}", {})
-                        st.markdown("#### 📊 Game 2 Evaluation Results")
-                        for idx, mw in enumerate(mcq_list, 1):
-                            if not isinstance(mw, dict): continue
-                            u_v = ans_map.get(idx)
-                            c_v = mw.get('correct_option')
-                            is_c, disp = evaluate_answer(u_v, c_v, mw.get('options', []))
-                            if is_c:
-                                g2_score += 1
-                                st.markdown(f'<div class="correct-card">✅ <b>Q{idx}: Correct!</b> 👉 <b>{u_v}</b></div>', unsafe_allow_html=True)
-                            else:
-                                st.markdown(f'<div class="wrong-card">❌ <b>Q{idx}: Incorrect.</b> Selected: <b>{u_v if u_v else "None"}</b> | Correct: <b>{disp}</b></div>', unsafe_allow_html=True)
-                        st.info(f"🏆 Game 2 Final Score: {g2_score}/{len(mcq_list)}")
+# ==========================================
+# 6. MAIN CONTENT DISPLAY & EXECUTION
+# ==========================================
+def main():
+    selected_day = render_sidebar()
+    day_data = CURRICULUM[selected_day]
 
-        # --- 2. PRONUNCIATION ---
-        with tab_p:
-            st.markdown(f"### 🎙️ Passage Pronunciation Practice ({day_topic})")
-            pp = f"Generate 5 short executive speech passages (2-3 sentences each) on Topic '{day_topic}'. ALL text MUST be in ENGLISH. Return JSON object with key 'passages' containing an array of 5 strings."
-            p_dict = get_or_generate_data(f"p_passages_dict_{day_selected}", pp, seed_key=f"pron_passages_{day_selected}")
-            
-            p_list = p_dict.get("passages", []) if isinstance(p_dict, dict) else []
-            if isinstance(p_list, list):
-                for idx, text_p in enumerate(p_list, 1):
-                    st.markdown(f"""
-                    <div class="apex-card">
-                        <h4>Passage {idx}:</h4>
-                        <p style="font-size:16px;">{text_p}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    play_audio(text_p)
-                    record_and_evaluate_speech(text_p, f"day_{day_selected}_p_{idx}")
-
-        # --- 3. GRAMMAR RULES ---
-        with tab_g:
-            st.markdown(f"### 📐 Grammar Focus: {day_grammar}")
-            pgram = f"""Generate an in-depth C1/C2 executive grammar lesson for '{day_grammar}' applied to '{day_topic}'. 
-            Include:
-            1. 'lesson_theory': Object with 'explanation', 'business_rules', 'c_suite_examples'.
-            2. 'questions': Array of 5 Multiple Choice Questions testing this grammar rule. Each question must have 'id', 'question', 'options', 'answer', 'explanation'.
-            ALL text MUST be in 100% ENGLISH. Return JSON object."""
-            
-            render_quiz_system(f"grammar_{day_selected}", pgram, "Load Grammar Masterclass", "Grammar", seed_key=f"grammar_d{day_selected}")
-
-        # --- 4. READING ---
-        with tab_r:
-            st.markdown(f"### 📖 Case Study Reading: {day_topic}")
-            pread = f"""Generate an executive business case study passage (250-300 words) on '{day_topic}'.
-            Include 'passage' text and 'questions' array of 4 Multiple Choice Questions ('id', 'question', 'options', 'answer', 'explanation').
-            ALL text MUST be in 100% ENGLISH. Return JSON object."""
-            
-            render_quiz_system(f"reading_{day_selected}", pread, "Load Case Reading", "Reading", seed_key=f"read_d{day_selected}")
-
-        # --- 5. LISTENING BRIEFING ---
-        with tab_l:
-            st.markdown(f"### 🎧 C-Suite Audio Briefing: {day_topic}")
-            plist = f"""Generate a C-suite executive briefing transcript ('passage', 150-200 words) on '{day_topic}'.
-            Include 'questions' array of 4 Multiple Choice Questions ('id', 'question', 'options', 'answer', 'explanation').
-            ALL text MUST be in 100% ENGLISH. Return JSON object."""
-            
-            render_quiz_system(f"listening_{day_selected}", plist, "Load Audio Briefing", "Listening", seed_key=f"listen_d{day_selected}")
-
-        # --- 6. DETAILED WRITING SCENARIO ---
-        with tab_w:
-            st.markdown(f"### ✍️ Executive Writing Scenario: {day_topic}")
-            pwrit = f"""Generate a detailed executive writing scenario for '{day_topic}'.
-            Return JSON object with key 'writing_prompt' containing: 'scenario_background', 'task_instruction', 'target_vocabulary_to_use', 'key_metrics_to_include'."""
-            
-            w_data = get_or_generate_data(f"w_prompt_{day_selected}", pwrit, seed_key=f"write_d{day_selected}")
-            
-            if isinstance(w_data, dict) and "writing_prompt" in w_data and isinstance(w_data["writing_prompt"], dict):
-                wp = w_data["writing_prompt"]
-                st.markdown('<div class="apex-card">', unsafe_allow_html=True)
-                st.markdown("#### 📄 Executive Business Scenario")
-                st.write(wp.get("scenario_background", ""))
-                st.markdown("**🎯 Task Instruction:**")
-                st.write(wp.get("task_instruction", ""))
-                st.markdown(f"**💡 Target Keywords:** `{wp.get('target_vocabulary_to_use', '')}`")
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            user_writing_key = f"user_w_text_{day_selected}"
-            if user_writing_key not in st.session_state:
-                st.session_state[user_writing_key] = ""
-
-            user_text = st.text_area("Write your executive response below:", value=st.session_state[user_writing_key], height=220, key=user_writing_key)
-
-            if st.button("Submit Executive Writing for AI Evaluation", key=f"btn_eval_w_{day_selected}", use_container_width=True):
-                if len(user_text.strip()) < 30:
-                    st.warning("Please enter a more detailed writing response (minimum 30 words) for AI evaluation.")
-                else:
-                    peval = f"""Evaluate this executive writing response based on C-suite standards.
-                    Topic: '{day_topic}'
-                    Grammar Target: '{day_grammar}'
-                    User Response: "{user_text}"
-                    Return JSON object with keys:
-                    'overall_score' (out of 100),
-                    'grammar_feedback' (list of detailed points),
-                    'vocabulary_tone_feedback' (list of detailed points),
-                    'executive_rewrite' (polished version of user response).
-                    ALL text MUST be in ENGLISH."""
-                    
-                    eval_res = generate_ai_response(peval)
-                    clean_eval = extract_json(eval_res)
-                    if clean_eval:
-                        try:
-                            st.session_state[f"w_eval_res_{day_selected}"] = json.loads(clean_eval, strict=False)
-                            save_data_to_file()
-                        except Exception as e:
-                            st.error(f"Evaluation Parsing Error: {e}")
-
-            w_eval_data = st.session_state.get(f"w_eval_res_{day_selected}")
-            if isinstance(w_eval_data, dict):
-                st.markdown("### 📊 Executive AI Writing Evaluation")
-                score = w_eval_data.get("overall_score", 0)
-                st.metric("Writing Mastery Score", f"{score}/100")
-                
-                st.markdown('<div class="apex-card">', unsafe_allow_html=True)
-                st.markdown("#### 🔍 Detailed Feedback")
-                st.markdown("**Grammar & Syntax:**")
-                render_feedback_section(w_eval_data.get("grammar_feedback", []))
-                st.markdown("**Tone & C-Suite Vocabulary:**")
-                render_feedback_section(w_eval_data.get("vocabulary_tone_feedback", []))
-                st.markdown("</div>", unsafe_allow_html=True)
-
-                st.markdown('<div class="correct-card">', unsafe_allow_html=True)
-                st.markdown("#### ✨ Polished Executive Rewrite")
-                st.write(w_eval_data.get("executive_rewrite", ""))
-                st.markdown("</div>", unsafe_allow_html=True)
-
-        # --- 7. DATA-DRIVEN SPEAKING ---
-        with tab_s:
-            st.markdown(f"### 💬 Data-Driven Executive Speaking: {day_topic}")
-            pspeak = f"""Generate a C-suite presentation challenge for '{day_topic}'.
-            Return JSON object with key 'speaking_prompt':
-            'presentation_context', 'key_data_points', 'questions_to_address'."""
-            
-            s_data = get_or_generate_data(f"s_prompt_{day_selected}", pspeak, seed_key=f"speak_d{day_selected}")
-            
-            if isinstance(s_data, dict) and "speaking_prompt" in s_data and isinstance(s_data["speaking_prompt"], dict):
-                sp = s_data["speaking_prompt"]
-                st.markdown('<div class="apex-card">', unsafe_allow_html=True)
-                st.markdown("#### 📈 Strategic Context & Key Metrics")
-                st.write(sp.get("presentation_context", ""))
-                st.markdown("**📊 Key Data Points to Present:**")
-                st.write(sp.get("key_data_points", ""))
-                st.markdown("**🎯 Strategic Questions to Answer:**")
-                st.write(sp.get("questions_to_address", ""))
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            st.markdown("#### 🎙️ Practice Speaking Aloud & Live Audio Recording")
-            record_and_evaluate_speech(
-                f"Regarding {day_topic}, we must align our strategic execution with key data metrics to drive long-term value.", 
-                f"day_{day_selected}_speaking_main"
+    # Header section
+    col_head1, col_head2 = st.columns([3, 1])
+    with col_head1:
+        st.title(f"📖 {day_data['title']}")
+        st.caption(f"Topic: {day_data['topic']}")
+    with col_head2:
+        is_completed = selected_day in st.session_state.completed_days
+        if is_completed:
+            st.markdown(
+                "<span class='badge-green'>Trạng thái: Đã hoàn thành</span>",
+                unsafe_allow_html=True,
             )
-
-            user_speak_key = f"user_s_text_{day_selected}"
-            if user_speak_key not in st.session_state:
-                st.session_state[user_speak_key] = ""
-
-            s_text = st.text_area("Or type your speech response for AI analysis:", value=st.session_state[user_speak_key], height=180, key=user_speak_key)
-
-            if st.button("Evaluate Presentation Response", key=f"btn_eval_s_{day_selected}", use_container_width=True):
-                if len(s_text.strip()) < 20:
-                    st.warning("Please provide a speech response (minimum 20 words) for evaluation.")
-                else:
-                    pseval = f"""Evaluate this executive speech presentation response.
-                    Topic: '{day_topic}'
-                    User Response: "{s_text}"
-                    Return JSON object with keys:
-                    'clarity_impact_score' (out of 100),
-                    'persuasiveness_feedback' (list of points),
-                    'vocabulary_enhancements' (list of points),
-                    'model_c_suite_delivery' (sample text).
-                    ALL text MUST be in ENGLISH."""
-                    
-                    seval_res = generate_ai_response(pseval)
-                    clean_seval = extract_json(seval_res)
-                    if clean_seval:
-                        try:
-                            st.session_state[f"s_eval_res_{day_selected}"] = json.loads(clean_seval, strict=False)
-                            save_data_to_file()
-                        except Exception as e:
-                            st.error(f"Speech Analysis Error: {e}")
-
-            s_eval_data = st.session_state.get(f"s_eval_res_{day_selected}")
-            if isinstance(s_eval_data, dict):
-                st.markdown("### 📊 Presentation Feedback & AI Score")
-                st.metric("Clarity & Impact Score", f"{s_eval_data.get('clarity_impact_score', 0)}/100")
-                
-                st.markdown('<div class="apex-card">', unsafe_allow_html=True)
-                st.markdown("#### 💡 Structural & Persuasiveness Feedback")
-                render_feedback_section(s_eval_data.get("persuasiveness_feedback", []))
-                st.markdown("#### 🔤 Vocabulary & Phrase Upgrades")
-                render_feedback_section(s_eval_data.get("vocabulary_enhancements", []))
-                st.markdown('</div>', unsafe_allow_html=True)
-
-                st.markdown('<div class="correct-card">', unsafe_allow_html=True)
-                st.markdown("#### 🏆 Model C-Suite Delivery Transcript")
-                model_deliv = s_eval_data.get("model_c_suite_delivery", "")
-                st.write(model_deliv)
-                play_audio(model_deliv)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-        # --- 8. TRANSLATION PRACTICE ---
-        with tab_t:
-            st.markdown(f"### 🌐 Executive Translation Practice: {day_topic}")
-            ptrans = f"""Generate 4 challenging executive sentences on '{day_topic}' for English translation practice.
-            Return JSON object with key 'translations' as array of 4 objects:
-            'id', 'source_sentence_en', 'suggested_c_suite_translation', 'key_vocabulary_notes'."""
-            
-            t_data = get_or_generate_data(f"t_prompt_{day_selected}", ptrans, seed_key=f"trans_d{day_selected}")
-            
-            if isinstance(t_data, dict) and "translations" in t_data and isinstance(t_data["translations"], list):
-                t_list = t_data["translations"]
-                for idx, item in enumerate(t_list, 1):
-                    if not isinstance(item, dict): continue
-                    st.markdown(f'<div class="apex-card">', unsafe_allow_html=True)
-                    st.markdown(f"**Sentence {idx}:** {item.get('source_sentence_en')}")
-                    play_audio(item.get('source_sentence_en', ''))
-                    
-                    key_t_in = f"t_user_in_{day_selected}_{idx}"
-                    if key_t_in not in st.session_state:
-                        st.session_state[key_t_in] = ""
-                    
-                    st.text_input("Type your paraphrased/translated executive English version:", value=st.session_state[key_t_in], key=key_t_in)
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                if st.button("Submit & Reveal Benchmark Translations", key=f"btn_t_sub_{day_selected}", use_container_width=True):
-                    st.session_state[f"t_sub_{day_selected}"] = True
-                    save_data_to_file()
-
-                if st.session_state.get(f"t_sub_{day_selected}", False):
-                    st.markdown("### 📊 Benchmark C-Suite Reference Translations")
-                    for idx, item in enumerate(t_list, 1):
-                        if not isinstance(item, dict): continue
-                        user_ans = st.session_state.get(f"t_user_in_{day_selected}_{idx}", "")
-                        st.markdown(f'<div class="correct-card">', unsafe_allow_html=True)
-                        st.markdown(f"**Sentence {idx} Reference Solution:**")
-                        st.markdown(f"• **Your Version:** {user_ans if user_ans else 'Not provided'}")
-                        st.markdown(f"• **Suggested C-Suite Version:** {item.get('suggested_c_suite_translation')}")
-                        st.markdown(f"• **Key Vocabulary Notes:** {item.get('key_vocabulary_notes')}")
-                        st.markdown('</div>', unsafe_allow_html=True)
-
-    elif app_mode == "3. Error Log & Remind Review":
-        st.markdown("""
-        <div class="hero-banner">
-            <h2 style='margin:0;'>Error Log & Remind Review</h2>
-            <p style='margin:5px 0 0 0;'>Review all missed questions from Diagnostic & Curriculum Quizzes.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        err_list = st.session_state.get("error_log", [])
-        if not err_list:
-            st.success("🎉 Outstanding job! Your error log is empty. No missed questions recorded.")
+            if st.button("Đánh dấu chưa xong", key="uncomplete_btn"):
+                st.session_state.completed_days.remove(selected_day)
+                save_data_to_file()
+                st.rerun()
         else:
-            st.write(f"Total Missed Items Recorded: **{len(err_list)}**")
-            if st.button("🗑️ Clear Error Log History", use_container_width=True):
-                st.session_state["error_log"] = []
+            st.markdown(
+                "<span class='badge-pink'>Trạng thái: Đang học</span>",
+                unsafe_allow_html=True,
+            )
+            if st.button("Đánh dấu hoàn thành", key="complete_btn"):
+                st.session_state.completed_days.add(selected_day)
                 save_data_to_file()
                 st.rerun()
 
-            st.write("---")
-            for idx, err in enumerate(err_list, 1):
-                if not isinstance(err, dict): continue
-                st.markdown(f'<div class="wrong-card">', unsafe_allow_html=True)
-                st.markdown(f"#### Error #{idx} [{err.get('skill', 'General')}]")
-                st.markdown(f"**Question:** {err.get('question')}")
-                st.markdown(f"• **Your Answer:** <span style='color:#e11d48;'><b>{err.get('your_answer')}</b></span>", unsafe_allow_html=True)
-                st.markdown(f"• **Correct Answer:** <span style='color:#16a34a;'><b>{err.get('correct_answer')}</b></span>", unsafe_allow_html=True)
-                st.markdown(f"• **Explanation:** <i>{err.get('explanation')}</i>")
-                st.markdown('</div>', unsafe_allow_html=True)
+    st.divider()
+
+    # 8 Interactive Skill Tabs
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        "📚 Từ vựng",
+        "🗣️ Phát âm & Ngữ điệu",
+        "📝 Ngữ pháp",
+        "📖 Đọc hiểu",
+        "🎧 Nghe",
+        "✍️ Viết",
+        "📊 Nói (Speaking)",
+        "🔤 Dịch & Nhật ký lỗi",
+    ])
+
+    # TAB 1: VOCABULARY
+    with tab1:
+        st.subheader("Từ vựng bài học")
+        for v in day_data["vocab"]:
+            st.markdown(
+                f"""
+            <div class='card-box'>
+                <h4><b>{v['word']}</b> <i>({v['pos']})</i></h4>
+                <p><b>Ý nghĩa:</b> {v['meaning']}</p>
+                <p><b>Ví dụ:</b> <i>"{v['example']}"</i></p>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+
+    # TAB 2: PRONUNCIATION & INTONATION (FIXED & UPGRADED)
+    with tab2:
+        st.subheader("Luyện Phát âm & Ngữ điệu câu")
+        st.write(f"**Trọng tâm:** {day_data['pronunciation']['focus']}")
+        st.info(
+            f"**Câu mẫu luyện tập:** \"{day_data['pronunciation']['target_sentence']}\""
+        )
+
+        # Bộ Thu âm, Phát lại & AI Chấm điểm Phát âm / Ngữ điệu
+        record_and_evaluate_speech(day_data["pronunciation"]["target_sentence"])
+
+    # TAB 3: GRAMMAR
+    with tab3:
+        st.subheader(f"Ngữ pháp: {day_data['grammar']['title']}")
+        st.markdown(
+            f"<div class='card-box'>{day_data['grammar']['theory']}</div>",
+            unsafe_allow_html=True,
+        )
+
+    # TAB 4: READING
+    with tab4:
+        st.subheader(f"Bài đọc: {day_data['reading']['title']}")
+        st.write(day_data["reading"]["text"])
+        st.markdown("#### Câu hỏi đọc hiểu:")
+        for idx, q in enumerate(day_data["reading"]["questions"], 1):
+            st.write(f"**Q{idx}:** {q}")
+
+    # TAB 5: LISTENING
+    with tab5:
+        st.subheader("Bài tập Nghe")
+        st.write(day_data["listening"])
+
+    # TAB 6: WRITING
+    with tab6:
+        st.subheader("Bài tập Viết")
+        st.write(day_data["writing"])
+        user_writing = st.text_area(
+            "Nhập bài viết của bạn tại đây:", height=150, key=f"write_{selected_day}"
+        )
+        if st.button("Gửi bài viết để AI chấm điểm", key=f"eval_write_{selected_day}"):
+            if not st.session_state.groq_api_key:
+                st.error("Vui lòng nhập Groq API Key ở Sidebar!")
+            elif not user_writing.strip():
+                st.warning("Vui lòng nhập bài viết trước khi bấm chấm!")
+            else:
+                with st.spinner("AI đang chấm điểm bài viết..."):
+                    prompt = f"Hãy nhận xét và sửa lỗi chi tiết cho bài viết tiếng Anh sau:\n\n{user_writing}"
+                    feedback = call_groq_llm(prompt, st.session_state.groq_api_key)
+                    if feedback:
+                        st.markdown("### 📊 Đánh giá bài viết từ AI")
+                        st.markdown(
+                            f"<div class='card-box'>{feedback}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+    # TAB 7: SPEAKING
+    with tab7:
+        st.subheader("Luyện Nói IELTS Speaking")
+        st.write(f"**Chủ đề bài nói:** {day_data['speaking_prompt']}")
+
+        # Bộ Thu âm, Phát lại & AI Chấm điểm bài nói IELTS
+        record_and_evaluate_speech(day_data["speaking_prompt"])
+
+    # TAB 8: TRANSLATION & ERROR LOG
+    with tab8:
+        st.subheader("Thử thách Dịch thuật")
+        st.write(f"**Dịch câu sau sang tiếng Anh:** {day_data['translation']}")
+
+        user_trans = st.text_input("Nhập bản dịch của bạn:", key=f"trans_{selected_day}")
+        if st.button("Kiểm tra bản dịch", key=f"check_trans_{selected_day}"):
+            if not st.session_state.groq_api_key:
+                st.error("Vui lòng nhập Groq API Key ở Sidebar!")
+            elif not user_trans.strip():
+                st.warning("Vui lòng nhập bản dịch trước!")
+            else:
+                with st.spinner("AI đang kiểm tra bản dịch..."):
+                    prompt = f"Hãy đánh giá bản dịch tiếng Anh này.\n- Câu gốc tiếng Việt: '{day_data['translation']}'\n- Bản dịch của học viên: '{user_trans}'\nĐưa ra câu dịch chuẩn và sửa lỗi ngữ pháp/từ vựng nếu có."
+                    eval_trans = call_groq_llm(prompt, st.session_state.groq_api_key)
+                    if eval_trans:
+                        st.markdown(
+                            f"<div class='card-box'>{eval_trans}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+        st.divider()
+
+        # Nhật ký lưu lỗi cá nhân (User Error Log)
+        st.subheader("📓 Nhật ký ghi chú & Lưu lỗi cá nhân")
+        note_input = st.text_area(
+            "Ghi lại các từ vựng hoặc lỗi phát âm cần xem lại hôm nay:",
+            value=st.session_state.user_notes.get(str(selected_day), ""),
+            key=f"note_area_{selected_day}",
+        )
+        if st.button("Lưu ghi chú", key=f"save_note_{selected_day}"):
+            st.session_state.user_notes[str(selected_day)] = note_input
+            save_data_to_file()
+            st.success("Đã lưu ghi chú thành công!")
+
+
+if __name__ == "__main__":
+    main()
