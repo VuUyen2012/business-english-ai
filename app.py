@@ -81,10 +81,10 @@ if "groq_api_key" not in st.session_state:
 
 
 # ==========================================
-# 3. XỬ LÝ GROQ API (ĐÃ SỬA TRIỆT ĐỂ LỖI MODEL 400)
+# 3. XỬ LÝ GROQ API (KHẮC PHỦC LỖI MODEL 400)
 # ==========================================
 def call_groq_llm(prompt, api_key, system_instruction=None):
-    """Tự động luân chuyển các Model ACTIVE mới nhất của Groq để sửa lỗi 400 decommissioned."""
+    """Tự động chuyển đổi giữa các Model ACTIVE mới nhất của Groq để sửa lỗi 400."""
     if not api_key:
         st.error("Vui lòng nhập Groq API Key ở Sidebar bên trái!")
         return None
@@ -95,7 +95,7 @@ def call_groq_llm(prompt, api_key, system_instruction=None):
         "Content-Type": "application/json",
     }
 
-    # Cập nhật danh sách Model HOẠT ĐỘNG CHUẨN
+    # Danh sách Model ACTIVE chuẩn nhất của Groq
     active_models = [
         "llama-3.3-70b-versatile",
         "llama-3.1-8b-instant",
@@ -161,7 +161,7 @@ def transcribe_audio_groq(audio_bytes, api_key):
 
 
 # ==========================================
-# 4. MODULE PRONUNCIATION & INTONATION (1-OPTION)
+# 4. MODULE PRONUNCIATION & INTONATION
 # ==========================================
 def record_and_evaluate_speech(reference_text, context_label="Pronunciation"):
     st.subheader(f"🎙️ Ghi Âm & Chấm Điểm Giọng Nói ({context_label})")
@@ -318,7 +318,7 @@ for d in range(2, 31):
 
 
 # ==========================================
-# 6. GIAO DIỆN NGUYÊN BẢN VÀ XỬ LÝ SỰ KIỆN
+# 6. GIAO DIỆN CHÍNH & TABS KỸ NĂNG
 # ==========================================
 def main():
     st.sidebar.title("🎓 English Mastery 30D")
@@ -379,7 +379,7 @@ def main():
 
     st.divider()
 
-    # 7 Skill Tabs chính (Đã xóa bỏ tab Assessment)
+    # 7 Tabs chính (Đã xóa tab Assessment)
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "🔤 Vocabulary & Games",
         "🗣️ Pronunciation",
@@ -405,7 +405,7 @@ def main():
                 unsafe_allow_html=True,
             )
 
-    # 2. Pronunciation (Ghi âm 1 Option & Chấm ngữ điệu)
+    # 2. Pronunciation
     with tab2:
         st.subheader("🗣️ Pronunciation & Sentence Intonation")
         st.write(f"**Focus Area:** {day_data['pronunciation']['focus']}")
@@ -417,7 +417,7 @@ def main():
             context_label="Pronunciation",
         )
 
-    # 3. Grammar Rules (Đã sửa lỗi Load Grammar Masterclass 400)
+    # 3. Grammar Rules
     with tab3:
         st.subheader(f"📐 Grammar Focus: {day_data['grammar_concept']}")
         st.markdown(
@@ -458,7 +458,7 @@ def main():
         st.subheader("🎧 Listening Briefing")
         st.write(day_data["listening"])
 
-    # 6. Detailed Writing Scenario (Đã sửa lỗi 400 Chấm bài viết)
+    # 6. Detailed Writing Scenario
     with tab6:
         st.subheader("✍️ Detailed Writing Scenario")
         st.write(f"**Nhiệm vụ:** {day_data['writing_prompt']}")
