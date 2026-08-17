@@ -133,6 +133,13 @@ st.markdown("""
         border-bottom: 3px solid #e11d48 !important;
     }
 
+    audio {
+        width: 100% !important;
+        border-radius: 8px !important;
+        margin-top: 5px !important;
+        margin-bottom: 5px !important;
+    }
+
     .apex-card {
         background-color: #ffffff !important;
         border: 1px solid #fecdd3 !important;
@@ -234,15 +241,86 @@ def play_audio(text):
     """
     components.html(html_code, height=45)
 
+def transcribe_audio_groq(audio_bytes, filename="speech.wav"):
+    """Gửi file âm thanh lên Groq Whisper API để chuyển giọng nói thành văn bản."""
+    if not api_key:
+        return None
+    clean_key = re.sub(r'[^\x00-\x7F]+', '', str(api_key)).strip()
+    url = "https://api.groq.com/openai/v1/audio/transcriptions"
+    headers = {"Authorization": f"Bearer {clean_key}"}
+    files = {"file": (filename, audio_bytes, "audio/wav")}
+    data = {"model": "whisper-large-v3", "language": "en"}
+    try:
+        res = requests.post(url, headers=headers, files=files, data=data, timeout=60)
+        if res.status_code == 200:
+            return res.json().get("text", "")
+        else:
+            st.error(f"Whisper API Error ({res.status_code}): {res.text}")
+            return None
+    except Exception as e:
+        st.error(f"Whisper API Connection Error: {e}")
+        return None
+
 def record_and_evaluate_speech(original_text, unique_id):
     safe_target = json.dumps(original_text)
     
-    st.markdown("**🎙️ Option 1: Native Streamlit Recorder**")
+    st.markdown("**🎙️ Option 1: Native Streamlit Recorder & AI Voice Evaluator**")
     audio_val = st.audio_input(f"Record speech for evaluation", key=f"rec_native_{unique_id}")
     
     if audio_val is not None:
         st.audio(audio_val, format="audio/wav")
-        st.success("✅ Voice recorded successfully! Re-listen to your recording above or compare with native audio.")
+        st.success("✅ Recorded successfully! Click play above to re-listen to your voice.")
+        
+        if st.button("🤖 Evaluate Audio Recording via Groq Whisper AI", key=f"btn_eval_audio_{unique_id}", use_container_width=True):
+            with st.spinner("Analyzing pronunciation, stress, intonation & fluency via Whisper AI..."):
+                audio_bytes = audio_val.read()
+                transcription = transcribe_audio_groq(audio_bytes)
+                if transcription:
+                    peval_audio = f"""You are an expert Executive English Pronunciation Coach. 
+                    Target Text: "{original_text}"
+                    Speech Transcribed by AI: "{transcription}"
+                    
+                    Evaluate the user's pronunciation, intonation, and accuracy.
+                    Return JSON object with keys:
+                    'transcribed_text': str,
+                    'pronunciation_score': int (0-100),
+                    'mispronounced_words': list of strings,
+                    'intonation_feedback': list of detailed feedback points regarding stress, pace, and rhythm,
+                    'overall_advice': str.
+                    ALL text MUST be in ENGLISH."""
+                    
+                    raw_eval = generate_ai_response(peval_audio)
+                    clean_eval = extract_json(raw_eval)
+                    if clean_eval:
+                        try:
+                            eval_dict = json.loads(clean_eval, strict=False)
+                            st.session_state[f"res_audio_eval_{unique_id}"] = eval_dict
+                            save_data_to_file()
+                        except Exception as e:
+                            st.error(f"Evaluation Parsing Error: {e}")
+
+        eval_res = st.session_state.get(f"res_audio_eval_{unique_id}")
+        if isinstance(eval_res, dict):
+            score = eval_res.get("pronunciation_score", 0)
+            st.markdown(f"""
+            <div class="apex-card">
+                <h4>📊 Pronunciation Analysis & Feedback</h4>
+                <p><b>Transcribed Text:</b> "<i>{eval_res.get('transcribed_text')}</i>"</p>
+                <p><b>Pronunciation & Clarity Score:</b> <span style="font-size:18px; font-weight:700; color:{'#16a34a' if score>=80 else '#d97706' if score>=60 else '#e11d48'}">{score}/100</span></p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            mis_words = eval_res.get("mispronounced_words", [])
+            if mis_words:
+                st.markdown(f'<div class="wrong-card">❌ <b>Mispronounced / Omitted Words:</b> {", ".join(mis_words)}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="correct-card">✅ <b>All target words pronounced accurately!</b></div>', unsafe_allow_html=True)
+                
+            st.markdown('<div class="hint-card">', unsafe_allow_html=True)
+            st.markdown("<b>🎙️ Stress & Intonation Guidance:</b>")
+            render_feedback_section(eval_res.get("intonation_feedback", []))
+            st.markdown(f"<b>💡 Coaching Tip:</b> {eval_res.get('overall_advice', '')}")
+            st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("**⚡ Option 2: Live Browser Pronunciation Auto-Scorer**")
     html_code = f"""
@@ -273,6 +351,7 @@ def record_and_evaluate_speech(original_text, unique_id):
     <script>
     var isRecording_{unique_id} = false;
     var recognition_{unique_id} = null;
+    var accumulatedTranscript_{unique_id} = '';
 
     function levenshteinDistance(a, b) {{
         if (a.length === 0) return b.length;
@@ -321,10 +400,10 @@ def record_and_evaluate_speech(original_text, unique_id):
         recognition_{unique_id}.continuous = true;
         recognition_{unique_id}.interimResults = true;
         recognition_{unique_id}.maxAlternatives = 1;
+        accumulatedTranscript_{unique_id} = '';
 
         var btn = document.getElementById('btn_{unique_id}');
         var status = document.getElementById('status_{unique_id}');
-        var finalTranscript = '';
 
         recognition_{unique_id}.onstart = function() {{
             isRecording_{unique_id} = true;
@@ -337,31 +416,36 @@ def record_and_evaluate_speech(original_text, unique_id):
         recognition_{unique_id}.onerror = function(event) {{
             console.error("Speech Recognition Error:", event.error);
             if (event.error === 'no-speech') {{
-                status.innerHTML = '⚠️ Listening... Speak continuously!';
+                status.innerHTML = '⚠️ Listening... Keep speaking!';
                 status.style.color = '#d97706';
             }} else {{
                 isRecording_{unique_id} = false;
                 btn.style.backgroundColor = '#e11d48';
                 btn.innerHTML = '🎙️ Start Live Recognition';
-                status.innerHTML = '⚠️ Error: ' + event.error + '. Try using Option 1 above.';
+                status.innerHTML = '⚠️ Error: ' + event.error + '. Use Option 1 above.';
                 status.style.color = '#e11d48';
             }}
         }};
 
         recognition_{unique_id}.onresult = function(event) {{
+            var interimTranscript = '';
             for (var i = event.resultIndex; i < event.results.length; ++i) {{
                 if (event.results[i].isFinal) {{
-                    finalTranscript += event.results[i][0].transcript + ' ';
+                    accumulatedTranscript_{unique_id} += event.results[i][0].transcript + ' ';
+                }} else {{
+                    interimTranscript += event.results[i][0].transcript;
                 }}
             }}
             
-            if (finalTranscript.trim().length > 0) {{
+            var currentDisplay = accumulatedTranscript_{unique_id} + interimTranscript;
+            
+            if (currentDisplay.trim().length > 0) {{
                 document.getElementById('result_box_{unique_id}').style.display = 'block';
-                document.getElementById('transcript_{unique_id}').innerText = finalTranscript;
+                document.getElementById('transcript_{unique_id}').innerText = currentDisplay;
 
                 var targetText = {safe_target};
                 var cleanTarget = cleanText(targetText);
-                var cleanSpeech = cleanText(finalTranscript);
+                var cleanSpeech = cleanText(currentDisplay);
 
                 var dist = levenshteinDistance(cleanTarget, cleanSpeech);
                 var maxLen = Math.max(cleanTarget.length, cleanSpeech.length);
@@ -523,7 +607,6 @@ def generate_ai_response(prompt_input, seed_key=None):
     if seed_key:
         seed_value = int(hashlib.md5(seed_key.encode('utf-8')).hexdigest(), 16) % (2**31)
 
-    # Danh sách các Model tự động Fallback nếu gặp lỗi 404
     candidate_models = [
         "llama-3.3-70b-versatile",
         "llama-3.1-70b-versatile",
@@ -1030,7 +1113,6 @@ else:
             
             s_data = get_or_generate_data(f"s_prompt_{day_selected}", pspeak, seed_key=f"speak_d{day_selected}")
             
-            # FIX TRIỆT ĐỂ LỖI LINE 1000: Kiểm tra an toàn dữ liệu kiểu dictionary
             if isinstance(s_data, dict) and "speaking_prompt" in s_data and isinstance(s_data["speaking_prompt"], dict):
                 sp = s_data["speaking_prompt"]
                 st.markdown('<div class="apex-card">', unsafe_allow_html=True)
