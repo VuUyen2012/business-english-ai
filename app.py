@@ -5,7 +5,7 @@ import requests
 import streamlit as st
 
 # ==========================================
-# 1. CẤU HÌNH GIAO DIỆN STREAMLIT
+# 1. CẤU HÌNH GIAO DIỆN & ÉP MÀU CHỮ ĐEN
 # ==========================================
 st.set_page_config(
     page_title="IELTS Speaking & Business English 30D",
@@ -17,25 +17,57 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    .main { background-color: #FFF5F5; }
-    .stButton>button {
-        background-color: #E53E3E; color: white;
-        border-radius: 8px; border: none;
-        padding: 8px 16px; font-weight: bold; width: 100%;
+    /* Nền ứng dụng chính */
+    .main { 
+        background-color: #FFF5F5 !important; 
     }
-    .stButton>button:hover { background-color: #C53030; color: white; }
+    
+    /* Khung thẻ thông tin: Nền trắng, Chữ đen bắt buộc */
     .card-box {
-        background-color: #FFFFFF; padding: 20px;
-        border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        border: 1px solid #FEB2B2; margin-bottom: 20px;
+        background-color: #FFFFFF !important;
+        color: #1A202C !important;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.06);
+        border: 1px solid #FEB2B2;
+        margin-bottom: 20px;
     }
+    
+    /* Khóa tất cả font chữ bên trong card-box thành màu đen đậm */
+    .card-box *, .card-box h1, .card-box h2, .card-box h3, .card-box h4, 
+    .card-box p, .card-box span, .card-box div, .card-box b, .card-box i {
+        color: #1A202C !important;
+    }
+
+    /* Nút bấm */
+    .stButton>button {
+        background-color: #E53E3E !important; 
+        color: #FFFFFF !important;
+        border-radius: 8px; 
+        border: none;
+        padding: 8px 16px; 
+        font-weight: bold; 
+        width: 100%;
+    }
+    .stButton>button:hover { 
+        background-color: #C53030 !important; 
+        color: #FFFFFF !important; 
+    }
+
+    /* Badge trạng thái */
     .badge-pink {
-        background-color: #FED7D7; color: #9B2C2C;
-        padding: 4px 12px; border-radius: 16px; font-weight: bold;
+        background-color: #FED7D7 !important; 
+        color: #9B2C2C !important;
+        padding: 4px 12px; 
+        border-radius: 16px; 
+        font-weight: bold;
     }
     .badge-green {
-        background-color: #C6F6D5; color: #22543D;
-        padding: 4px 12px; border-radius: 16px; font-weight: bold;
+        background-color: #C6F6D5 !important; 
+        color: #22543D !important;
+        padding: 4px 12px; 
+        border-radius: 16px; 
+        font-weight: bold;
     }
 </style>
 """,
@@ -379,7 +411,7 @@ def main():
 
     st.divider()
 
-    # 7 Tabs chính (Đã xóa tab Assessment)
+    # 7 Tabs kỹ năng chính (Đã bỏ tab Assessment)
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "🔤 Vocabulary & Games",
         "🗣️ Pronunciation",
