@@ -209,7 +209,7 @@ if "error_log" not in st.session_state:
     st.session_state["error_log"] = []
 
 # ==========================================
-# 2. AUDIO PLAYER & HELPER FUNCTIONS
+# 2. AUDIO PLAYER & SINGLE RECORD EVALUATOR
 # ==========================================
 def play_audio(text):
     safe_text = json.dumps(text)
@@ -262,10 +262,9 @@ def transcribe_audio_groq(audio_bytes, filename="speech.wav"):
         return None
 
 def record_and_evaluate_speech(original_text, unique_id):
-    safe_target = json.dumps(original_text)
-    
-    st.markdown("**🎙️ Option 1: Native Streamlit Recorder & AI Voice Evaluator**")
-    audio_val = st.audio_input(f"Record speech for evaluation", key=f"rec_native_{unique_id}")
+    """Recorder duy nhất: Cho phép Ghi âm, Nghe lại trực tiếp và Chấm điểm chi tiết qua AI."""
+    st.markdown("**🎙️ Native Audio Recorder & AI Pronunciation Evaluator**")
+    audio_val = st.audio_input("Record speech for evaluation", key=f"rec_native_{unique_id}")
     
     if audio_val is not None:
         st.audio(audio_val, format="audio/wav")
@@ -321,180 +320,6 @@ def record_and_evaluate_speech(original_text, unique_id):
             render_feedback_section(eval_res.get("intonation_feedback", []))
             st.markdown(f"<b>💡 Coaching Tip:</b> {eval_res.get('overall_advice', '')}")
             st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown("**⚡ Option 2: Live Browser Pronunciation Auto-Scorer**")
-    html_code = f"""
-    <div style="font-family: 'Inter', sans-serif; margin: 5px 0; padding: 12px; border: 1.5px solid #fda4af; border-radius: 10px; background-color: #ffffff;">
-        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-            <button id="btn_{unique_id}" onclick="toggleRecognition_{unique_id}()" style="
-                background-color: #e11d48;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 6px;
-                cursor: pointer;
-                font-weight: 600;
-                display: flex;
-                align-items: center;
-                gap: 6px;">
-                🎙️ Start Live Recognition
-            </button>
-            <span id="status_{unique_id}" style="font-size: 14px; font-weight: 500; color: #9f1239;">Click button and start reading...</span>
-        </div>
-        <div id="result_box_{unique_id}" style="margin-top: 10px; display: none; background-color: #fff1f2; padding: 10px; border-radius: 6px;">
-            <p style="margin: 4px 0;"><b>Transcribed Text:</b> <i id="transcript_{unique_id}" style="color: #0f172a;">-</i></p>
-            <p style="margin: 4px 0;"><b>Pronunciation Score:</b> <span id="score_{unique_id}" style="font-weight: 700; font-size: 16px;">-</span></p>
-            <div id="feedback_{unique_id}" style="margin-top: 5px; font-size: 13px;"></div>
-        </div>
-    </div>
-
-    <script>
-    var isRecording_{unique_id} = false;
-    var recognition_{unique_id} = null;
-    var accumulatedTranscript_{unique_id} = '';
-
-    function levenshteinDistance(a, b) {{
-        if (a.length === 0) return b.length;
-        if (b.length === 0) return a.length;
-        var matrix = [];
-        for (var i = 0; i <= b.length; i++) matrix[i] = [i];
-        for (var j = 0; j <= a.length; j++) matrix[0][j] = j;
-
-        for (var i = 1; i <= b.length; i++) {{
-            for (var j = 1; j <= a.length; j++) {{
-                if (b.charAt(i - 1) === a.charAt(j - 1)) {{
-                    matrix[i][j] = matrix[i - 1][j - 1];
-                }} else {{
-                    matrix[i][j] = Math.min(
-                        matrix[i - 1][j - 1] + 1,
-                        matrix[i][j - 1] + 1,
-                        matrix[i - 1][j] + 1
-                    );
-                }}
-            }}
-        }}
-        return matrix[b.length][a.length];
-    }}
-
-    function cleanText(text) {{
-        return text.toLowerCase().replace(/[^a-z0-9\\s]/g, '').trim();
-    }}
-
-    function toggleRecognition_{unique_id}() {{
-        if (isRecording_{unique_id}) {{
-            stopRecognition_{unique_id}();
-        }} else {{
-            startRecognition_{unique_id}();
-        }}
-    }}
-
-    function startRecognition_{unique_id}() {{
-        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {{
-            alert("Your browser does not support Speech Recognition. Please use Google Chrome or MS Edge.");
-            return;
-        }}
-
-        recognition_{unique_id} = new SpeechRecognition();
-        recognition_{unique_id}.lang = 'en-US';
-        recognition_{unique_id}.continuous = true;
-        recognition_{unique_id}.interimResults = true;
-        recognition_{unique_id}.maxAlternatives = 1;
-        accumulatedTranscript_{unique_id} = '';
-
-        var btn = document.getElementById('btn_{unique_id}');
-        var status = document.getElementById('status_{unique_id}');
-
-        recognition_{unique_id}.onstart = function() {{
-            isRecording_{unique_id} = true;
-            btn.style.backgroundColor = '#16a34a';
-            btn.innerHTML = '⏹️ Recording... Click to Stop & Score';
-            status.innerHTML = '🎙️ Active! Speak clearly into your mic...';
-            status.style.color = '#16a34a';
-        }};
-
-        recognition_{unique_id}.onerror = function(event) {{
-            console.error("Speech Recognition Error:", event.error);
-            if (event.error === 'no-speech') {{
-                status.innerHTML = '⚠️ Listening... Keep speaking!';
-                status.style.color = '#d97706';
-            }} else {{
-                isRecording_{unique_id} = false;
-                btn.style.backgroundColor = '#e11d48';
-                btn.innerHTML = '🎙️ Start Live Recognition';
-                status.innerHTML = '⚠️ Error: ' + event.error + '. Use Option 1 above.';
-                status.style.color = '#e11d48';
-            }}
-        }};
-
-        recognition_{unique_id}.onresult = function(event) {{
-            var interimTranscript = '';
-            for (var i = event.resultIndex; i < event.results.length; ++i) {{
-                if (event.results[i].isFinal) {{
-                    accumulatedTranscript_{unique_id} += event.results[i][0].transcript + ' ';
-                }} else {{
-                    interimTranscript += event.results[i][0].transcript;
-                }}
-            }}
-            
-            var currentDisplay = accumulatedTranscript_{unique_id} + interimTranscript;
-            
-            if (currentDisplay.trim().length > 0) {{
-                document.getElementById('result_box_{unique_id}').style.display = 'block';
-                document.getElementById('transcript_{unique_id}').innerText = currentDisplay;
-
-                var targetText = {safe_target};
-                var cleanTarget = cleanText(targetText);
-                var cleanSpeech = cleanText(currentDisplay);
-
-                var dist = levenshteinDistance(cleanTarget, cleanSpeech);
-                var maxLen = Math.max(cleanTarget.length, cleanSpeech.length);
-                var similarity = maxLen === 0 ? 100 : Math.round(((maxLen - dist) / maxLen) * 100);
-                if (similarity < 0) similarity = 0;
-
-                var scoreElem = document.getElementById('score_{unique_id}');
-                var feedbackElem = document.getElementById('feedback_{unique_id}');
-                
-                scoreElem.innerText = similarity + "%";
-                if (similarity >= 80) {{
-                    scoreElem.style.color = "#16a34a";
-                    feedbackElem.innerHTML = "<b style='color:#16a34a;'>🌟 Excellent pronunciation and clarity!</b>";
-                }} else if (similarity >= 60) {{
-                    scoreElem.style.color = "#d97706";
-                    feedbackElem.innerHTML = "<b style='color:#d97706;'>👍 Good effort! Focus on pace and articulation.</b>";
-                }} else {{
-                    scoreElem.style.color = "#e11d48";
-                    feedbackElem.innerHTML = "<b style='color:#e11d48;'>💡 Re-listen to native audio and try again.</b>";
-                }}
-            }}
-        }};
-
-        try {{
-            recognition_{unique_id}.start();
-        }} catch(e) {{
-            console.error("Start failed:", e);
-        }}
-    }}
-
-    function stopRecognition_{unique_id}() {{
-        isRecording_{unique_id} = false;
-        var btn = document.getElementById('btn_{unique_id}');
-        var status = document.getElementById('status_{unique_id}');
-        if (btn) {{
-            btn.style.backgroundColor = '#e11d48';
-            btn.innerHTML = '🎙️ Start Live Recognition';
-        }}
-        if (status) {{
-            status.innerHTML = 'Speech processing finished.';
-            status.style.color = '#0f172a';
-        }}
-        if (recognition_{unique_id}) {{
-            try {{ recognition_{unique_id}.stop(); }} catch(e) {{}}
-        }}
-    }}
-    </script>
-    """
-    components.html(html_code, height=210)
 
 def render_formatted_theory(theory_data):
     """Render lý thuyết đẹp mắt, tránh bị lồng dính raw JSON."""
@@ -607,9 +432,9 @@ def generate_ai_response(prompt_input, seed_key=None):
     if seed_key:
         seed_value = int(hashlib.md5(seed_key.encode('utf-8')).hexdigest(), 16) % (2**31)
 
+    # Đã cập nhật danh sách model Groq mới nhất, khắc phục lỗi llama-3.1-70b-versatile bị ngắt dịch vụ
     candidate_models = [
         "llama-3.3-70b-versatile",
-        "llama-3.1-70b-versatile",
         "llama3-70b-8192",
         "mixtral-8x7b-32768"
     ]
@@ -632,8 +457,8 @@ def generate_ai_response(prompt_input, seed_key=None):
             res = requests.post(url, headers=headers, json=payload, timeout=60)
             if res.status_code == 200:
                 return res.json()['choices'][0]['message']['content']
-            elif res.status_code == 404 or "model_not_found" in res.text:
-                last_err_msg = f"Model {model_name} not available, switching to alternative model..."
+            elif res.status_code in (400, 404) or "decommissioned" in res.text or "model_not_found" in res.text:
+                last_err_msg = f"Model {model_name} unavailable, trying alternative model..."
                 continue
             else:
                 st.error(f"API Error ({res.status_code}): {res.text}")
