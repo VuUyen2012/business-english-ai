@@ -1,11 +1,12 @@
 import json
 import os
+import random
 import tempfile
 import requests
 import streamlit as st
 
 # ==========================================
-# 1. CẤU HÌNH GIAO DIỆN & CSS (ÉP CHỮ ĐÊN / NỀN HỒNG - TRẮNG)
+# 1. CẤU HÌNH GIAO DIỆN & ÉP CHỮ ĐEN - NỀN HỒNG/TRẮNG
 # ==========================================
 st.set_page_config(
     page_title="IELTS Speaking & Business English 30D",
@@ -17,23 +18,23 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    /* Nền chính ứng dụng */
+    /* Nền ứng dụng chính màu hồng nhạt */
     .main { 
         background-color: #FFF5F5 !important; 
     }
     
-    /* Ép buộc màu chữ đen (#1A202C) trên nền trắng cho các thẻ nội dung */
+    /* Thẻ nội dung màu trắng - Ép màu chữ đen hoàn toàn (#1A202C) */
     .card-box {
         background-color: #FFFFFF !important;
         color: #1A202C !important;
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.06);
         border: 1px solid #FEB2B2;
         margin-bottom: 20px;
     }
     
-    /* Đảm bảo toàn bộ văn bản bên trong card-box luôn là chữ đen */
+    /* Ép tất cả thành phần văn bản bên trong card-box luôn hiển thị chữ đen */
     .card-box *, .card-box h1, .card-box h2, .card-box h3, .card-box h4, 
     .card-box p, .card-box span, .card-box div, .card-box b, .card-box i, .card-box li {
         color: #1A202C !important;
@@ -55,7 +56,7 @@ st.markdown(
         font-weight: bold;
     }
 
-    /* Nút bấm chủ đạo */
+    /* Styling nút bấm */
     .stButton>button {
         background-color: #E53E3E !important; 
         color: #FFFFFF !important;
@@ -113,10 +114,9 @@ if "groq_api_key" not in st.session_state:
 
 
 # ==========================================
-# 3. XỬ LÝ GROQ API (SỬA LỖI MODEL 400 TOÀN BỘ KỸ NĂNG)
+# 3. XỬ LÝ GROQ API (SỬA LỖI MODEL 400)
 # ==========================================
 def call_groq_llm(prompt, api_key, system_instruction=None):
-    """Sử dụng các model Active chuẩn của Groq để khắc phục triệt để lỗi 400 decommissioned."""
     if not api_key:
         st.error("Vui lòng nhập Groq API Key ở Sidebar bên trái!")
         return None
@@ -160,7 +160,6 @@ def call_groq_llm(prompt, api_key, system_instruction=None):
 
 
 def transcribe_audio_groq(audio_bytes, api_key):
-    """Chuyển âm thanh thu âm thành văn bản qua Whisper Large V3."""
     url = "https://api.groq.com/openai/v1/audio/transcriptions"
     headers = {"Authorization": f"Bearer {api_key}"}
 
@@ -192,12 +191,11 @@ def transcribe_audio_groq(audio_bytes, api_key):
 
 
 # ==========================================
-# 4. MODULE PRONUNCIATION & INTONATION (GHI ÂM, PHÁT LẠI & CHẤM ĐIỂM NGỮ ĐIỆU)
+# 4. MODULE PRONUNCIATION & INTONATION
 # ==========================================
 def record_and_evaluate_speech(reference_text, context_label="Pronunciation"):
     st.subheader(f"🎙️ Ghi Âm & Chấm Điểm Giọng Nói ({context_label})")
 
-    # Widget ghi âm trực tiếp
     audio_value = st.audio_input(
         "Nhấn nút Micro bên dưới để ghi âm bài đọc:",
         key=f"rec_{context_label}_{hash(reference_text)}",
@@ -206,7 +204,6 @@ def record_and_evaluate_speech(reference_text, context_label="Pronunciation"):
     if audio_value is not None:
         audio_bytes = audio_value.read()
 
-        # Phát lại bản thu âm của người dùng
         st.markdown("#### 🔊 Nghe lại bản ghi âm của bạn:")
         st.audio(audio_bytes, format="audio/wav")
 
@@ -224,7 +221,7 @@ def record_and_evaluate_speech(reference_text, context_label="Pronunciation"):
 
                 if transcription:
                     st.info(f'📝 **Văn bản nhận diện được:** "{transcription}"')
-                    with st.spinner("AI đang phân tích phát âm, ngữ điệu và trọng âm..."):
+                    with st.spinner("AI đang phân tích ngữ điệu, trọng âm và độ trôi chảy..."):
                         eval_prompt = f"""
                         Phân tích bài phát âm và ngữ điệu câu tiếng Anh của học viên:
                         - Câu gốc chuẩn (Reference): "{reference_text}"
@@ -258,35 +255,27 @@ def record_and_evaluate_speech(reference_text, context_label="Pronunciation"):
 
 
 # ==========================================
-# 5. DỮ LIỆU CURRICULUM BÀI HỌC
+# 5. DỮ LIỆU BÀI HỌC CURRICULUM (10 TỪ VỰNG / BÀI)
 # ==========================================
 CURRICULUM = {
     1: {
         "title": "Day 1: Corporate Strategy & Vision",
         "grammar_concept": "Present Perfect vs. Past Simple in Performance Reporting",
         "vocab": [
-            {
-                "word": "Synergy",
-                "pos": "noun",
-                "meaning": "Sự cộng hưởng",
-                "example": "Cross-departmental synergy boosted overall efficiency.",
-            },
-            {
-                "word": "Benchmark",
-                "pos": "noun",
-                "meaning": "Tiêu chuẩn đánh giá",
-                "example": "We set new industry benchmarks this quarter.",
-            },
-            {
-                "word": "Streamline",
-                "pos": "verb",
-                "meaning": "Tối ưu hóa quy trình",
-                "example": "The team streamlined operations to cut costs.",
-            },
+            {"word": "Synergy", "pos": "noun", "meaning": "Sự cộng hưởng", "example": "Cross-departmental synergy boosted overall efficiency."},
+            {"word": "Benchmark", "pos": "noun", "meaning": "Tiêu chuẩn đánh giá", "example": "We set new industry benchmarks this quarter."},
+            {"word": "Streamline", "pos": "verb", "meaning": "Tối ưu hóa quy trình", "example": "The team streamlined operations to cut costs."},
+            {"word": "Leverage", "pos": "verb", "meaning": "Tận dụng nguồn lực", "example": "We must leverage customer data for growth."},
+            {"word": "Pivot", "pos": "verb", "meaning": "Chuyển hướng chiến lược", "example": "The startup pivoted to a B2B business model."},
+            {"word": "Milestone", "pos": "noun", "meaning": "Cột mốc quan trọng", "example": "Reaching 1M users was a critical milestone."},
+            {"word": "Optimization", "pos": "noun", "meaning": "Sự tối ưu hóa", "example": "Workflow optimization reduced project delays."},
+            {"word": "Feasibility", "pos": "noun", "meaning": "Tính khả thi", "example": "We conducted a feasibility study before launching."},
+            {"word": "Deliverable", "pos": "noun", "meaning": "Sản phẩm bàn giao", "example": "All key deliverables were submitted on schedule."},
+            {"word": "Scalability", "pos": "noun", "meaning": "Khả năng mở rộng", "example": "Cloud architecture ensures system scalability."}
         ],
         "pronunciation": {
             "focus": "Linking Words & Intonation in Executive Summaries",
-            "target_sentence": "Our strategic initiatives have significantly increased revenue over the past fiscal year.",
+            "target_sentence": "Our strategic initiatives have significantly increased revenue over the past fiscal year."
         },
         "grammar_theory": """
         **Present Perfect**: Dùng khi báo cáo kết quả kéo dài đến hiện tại (*Revenue has grown by 15% this year*).  
@@ -297,55 +286,50 @@ CURRICULUM = {
             "text": "Over the past three years, our corporation has expanded into five international markets. Last year, the executive board approved a major digital transformation roadmap.",
             "questions": [
                 "How many international markets has the corporation expanded into?",
-                "What did the board approve last year?",
-            ],
+                "What did the board approve last year?"
+            ]
         },
         "listening": "Listen to the CEO's quarterly briefing on strategic growth targets.",
         "writing_prompt": "Draft a brief 120-word executive summary evaluating your department's past performance.",
-        "speaking_prompt": "Deliver a 2-minute oral presentation outlining your company's core strategic vision.",
-        "translation": "Doanh nghiệp của chúng tôi đã mở rộng quy mô đáng kể trong quý vừa qua.",
+        "speaking_prompt": "Deliver a 2-minute oral presentation outlining your company's core strategic vision."
     }
 }
 
+# Khởi tạo 30 ngày đầy đủ 10 từ vựng mỗi ngày
 for d in range(2, 31):
     CURRICULUM[d] = {
         "title": f"Day {d}: Business Execution & Growth Focus {d}",
         "grammar_concept": f"Advanced Business Grammar Rules Unit {d}",
         "vocab": [
-            {
-                "word": f"Optimization_{d}",
-                "pos": "noun",
-                "meaning": "Sự tối ưu hóa",
-                "example": f"Focusing on workflow optimization during day {d}.",
-            },
-            {
-                "word": f"Leverage_{d}",
-                "pos": "verb",
-                "meaning": "Tận dụng nguồn lực",
-                "example": f"Leveraging market data for strategy {d}.",
-            },
+            {"word": f"Strategy_{d}_1", "pos": "noun", "meaning": f"Chiến lược kinh doanh {d}.1", "example": f"Executing core strategy for day {d}."},
+            {"word": f"Optimization_{d}_2", "pos": "noun", "meaning": f"Tối ưu hóa quy trình {d}.2", "example": f"Focusing on optimization in unit {d}."},
+            {"word": f"Leverage_{d}_3", "pos": "verb", "meaning": f"Tận dụng nguồn lực {d}.3", "example": f"Leveraging key resources during unit {d}."},
+            {"word": f"Benchmark_{d}_4", "pos": "noun", "meaning": f"Tiêu chuẩn chất lượng {d}.4", "example": f"Setting performance benchmarks in unit {d}."},
+            {"word": f"Feasibility_{d}_5", "pos": "noun", "meaning": f"Tính khả thi dự án {d}.5", "example": f"Assessing project feasibility for unit {d}."},
+            {"word": f"Deliverable_{d}_6", "pos": "noun", "meaning": f"Hạng mục bàn giao {d}.6", "example": f"Completing project deliverables in unit {d}."},
+            {"word": f"Scalability_{d}_7", "pos": "noun", "meaning": f"Mở rộng quy mô {d}.7", "example": f"Ensuring business scalability in unit {d}."},
+            {"word": f"Consolidate_{d}_8", "pos": "verb", "meaning": f"Củng cố thị phần {d}.8", "example": f"Consolidating market presence during day {d}."},
+            {"word": f"Diversify_{d}_9", "pos": "verb", "meaning": f"Đa dạng hóa danh mục {d}.9", "example": f"Diversifying investment options in unit {d}."},
+            {"word": f"Retention_{d}_10", "pos": "noun", "meaning": f"Duy trì khách hàng {d}.10", "example": f"Improving customer retention rate for unit {d}."}
         ],
         "pronunciation": {
             "focus": f"Pitch Modulation & Sentence Intonation Day {d}",
-            "target_sentence": f"Delivering persuasive executive presentations requires precise intonation and confident delivery.",
+            "target_sentence": f"Delivering persuasive executive presentations requires precise intonation and confident delivery."
         },
         "grammar_theory": f"Detailed grammar guidelines and professional writing structures for Unit {d}.",
         "reading": {
             "title": f"Market Analysis Report {d}",
             "text": f"Strategic planning and clear internal communication drive sustainable performance growth across departments in unit {d}.",
-            "questions": [
-                f"What drives sustainable corporate growth in unit {d}?"
-            ],
+            "questions": [f"What drives sustainable corporate growth in unit {d}?"]
         },
         "listening": f"Listen to senior executives discussing performance metrics for Unit {d}.",
         "writing_prompt": f"Write a professional business update covering core objectives for Day {d}.",
-        "speaking_prompt": f"Present a concise progress report regarding key deliverables of Unit {d}.",
-        "translation": f"Chiến lược kinh doanh hiệu quả mang lại sự tăng trưởng bền vững.",
+        "speaking_prompt": f"Present a concise progress report regarding key deliverables of Unit {d}."
     }
 
 
 # ==========================================
-# 6. GIAO DIỆN CHÍNH (ĐÃ XÓA TẮT TAB ASSESSMENT)
+# 6. GIAO DIỆN CHÍNH VÀ CÁC TABS KỸ NĂNG
 # ==========================================
 def main():
     st.sidebar.title("🎓 English Mastery 30D")
@@ -363,9 +347,7 @@ def main():
     st.sidebar.divider()
 
     completed_count = len(st.session_state.completed_days)
-    st.sidebar.write(
-        f"**Tiến độ:** {completed_count}/30 Ngày ({int(completed_count/30*100)}%)"
-    )
+    st.sidebar.write(f"**Tiến độ:** {completed_count}/30 Ngày ({int(completed_count/30*100)}%)")
     st.sidebar.progress(completed_count / 30.0)
 
     st.sidebar.divider()
@@ -386,19 +368,13 @@ def main():
     with col2:
         is_completed = selected_day in st.session_state.completed_days
         if is_completed:
-            st.markdown(
-                "<span class='badge-green'>Trạng thái: Hoàn thành</span>",
-                unsafe_allow_html=True,
-            )
+            st.markdown("<span class='badge-green'>Trạng thái: Hoàn thành</span>", unsafe_allow_html=True)
             if st.button("Hủy đánh dấu"):
                 st.session_state.completed_days.remove(selected_day)
                 save_data_to_file()
                 st.rerun()
         else:
-            st.markdown(
-                "<span class='badge-pink'>Trạng thái: Đang học</span>",
-                unsafe_allow_html=True,
-            )
+            st.markdown("<span class='badge-pink'>Trạng thái: Đang học</span>", unsafe_allow_html=True)
             if st.button("Đánh dấu Hoàn thành"):
                 st.session_state.completed_days.add(selected_day)
                 save_data_to_file()
@@ -406,7 +382,7 @@ def main():
 
     st.divider()
 
-    # 7 Tab kỹ năng chính (Đã xóa tab Assessment hoàn toàn)
+    # 7 Tab kỹ năng chính (Đã bỏ hoàn toàn Tab Assessment)
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "🔤 Vocabulary & Games",
         "🗣️ Pronunciation",
@@ -417,34 +393,85 @@ def main():
         "📊 Speaking Presentation",
     ])
 
-    # 1. Vocabulary
+    # ------------------------------------------
+    # TAB 1: VOCABULARY & 2 INTERACTIVE GAMES
+    # ------------------------------------------
     with tab1:
-        st.subheader("📚 Key Vocabulary")
-        for v in day_data["vocab"]:
-            st.markdown(
-                f"""
-            <div class='card-box'>
-                <h4><b>{v['word']}</b> <i>({v['pos']})</i></h4>
-                <p><b>Ý nghĩa:</b> {v['meaning']}</p>
-                <p><b>Ví dụ:</b> <i>"{v['example']}"</i></p>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
+        st.subheader("📚 10 Key Vocabulary Words")
+        
+        # Hiển thị danh sách 10 từ vựng
+        cols = st.columns(2)
+        for idx, v in enumerate(day_data["vocab"]):
+            col = cols[idx % 2]
+            with col:
+                st.markdown(
+                    f"""
+                    <div class='card-box'>
+                        <h4><b>{idx+1}. {v['word']}</b> <i>({v['pos']})</i></h4>
+                        <p><b>Ý nghĩa:</b> {v['meaning']}</p>
+                        <p><b>Ví dụ:</b> <i>"{v['example']}"</i></p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-    # 2. Pronunciation
+        st.divider()
+        st.subheader("🎮 Vocabulary Practice Games")
+
+        # Game 1: Multiple Choice Flashcard Quiz
+        st.markdown("### 🕹️ Game 1: Quick Meaning Quiz (Trắc nghiệm Từ vựng)")
+        vocab_list = day_data["vocab"]
+        
+        quiz_word = vocab_list[st.session_state.get(f"q_idx_{selected_day}", 0) % len(vocab_list)]
+        correct_meaning = quiz_word["meaning"]
+        
+        # Tạo danh sách phương án lựa chọn
+        options = [correct_meaning]
+        other_meanings = [v["meaning"] for v in vocab_list if v["meaning"] != correct_meaning]
+        options.extend(random.sample(other_meanings, min(3, len(other_meanings))))
+        random.shuffle(options)
+
+        st.markdown(f"**Từ vựng cần chọn nghĩa đúng:** `<h3 style='display:inline; color:#E53E3E;'>{quiz_word['word']}</h3>`", unsafe_allow_html=True)
+        user_choice = st.radio("Chọn nghĩa đúng:", options, key=f"radio_g1_{selected_day}_{quiz_word['word']}")
+        
+        if st.button("Kiểm Tra Đáp Án Game 1", key=f"btn_g1_{selected_day}"):
+            if user_choice == correct_meaning:
+                st.success("🎉 Chính xác! Bạn đã nhớ đúng nghĩa của từ này.")
+                st.session_state[f"q_idx_{selected_day}"] = st.session_state.get(f"q_idx_{selected_day}", 0) + 1
+            else:
+                st.error(f"❌ Chưa đúng rồi! Đáp án chính xác là: **{correct_meaning}**")
+
+        st.divider()
+
+        # Game 2: Fill-in-the-Blank Sentence Application
+        st.markdown("### 🧩 Game 2: Context Fill-in-the-Blank (Ghép Từ Vào Câu)")
+        fill_item = vocab_list[(st.session_state.get(f"q_idx_{selected_day}", 0) + 1) % len(vocab_list)]
+        masked_sentence = fill_item["example"].replace(fill_item["word"], "________")
+        
+        st.markdown(f"**Điền từ còn thiếu vào câu:** *\"{masked_sentence}\"*")
+        user_input_word = st.text_input("Nhập từ tiếng Anh thích hợp:", key=f"input_g2_{selected_day}")
+        
+        if st.button("Kiểm Tra Đáp Án Game 2", key=f"btn_g2_{selected_day}"):
+            if user_input_word.strip().lower() == fill_item["word"].lower():
+                st.success(f"🎉 Xuất sắc! Từ điền chính xác là **{fill_item['word']}**.")
+            else:
+                st.error(f"❌ Rất tiếc! Đáp án chuẩn xác là: **{fill_item['word']}**")
+
+    # ------------------------------------------
+    # TAB 2: PRONUNCIATION & INTONATION
+    # ------------------------------------------
     with tab2:
         st.subheader("🗣️ Pronunciation & Sentence Intonation")
         st.write(f"**Focus Area:** {day_data['pronunciation']['focus']}")
-        st.info(
-            f"**Target Sentence:** \"{day_data['pronunciation']['target_sentence']}\""
-        )
+        st.info(f"**Target Sentence:** \"{day_data['pronunciation']['target_sentence']}\"")
         record_and_evaluate_speech(
             day_data["pronunciation"]["target_sentence"],
             context_label="Pronunciation",
         )
 
-    # 3. Grammar Rules (Khắc phục lỗi Load Masterclass 400)
+    # ------------------------------------------
+    # TAB 3: GRAMMAR RULES & MASTERCLASS
+    # ------------------------------------------
     with tab3:
         st.subheader(f"📐 Grammar Focus: {day_data['grammar_concept']}")
         st.markdown(
@@ -472,7 +499,9 @@ def main():
                         unsafe_allow_html=True,
                     )
 
-    # 4. Reading
+    # ------------------------------------------
+    # TAB 4: READING COMPREHENSION
+    # ------------------------------------------
     with tab4:
         st.subheader(f"📖 {day_data['reading']['title']}")
         st.write(day_data["reading"]["text"])
@@ -480,12 +509,16 @@ def main():
         for q in day_data["reading"]["questions"]:
             st.write(f"- {q}")
 
-    # 5. Listening Briefing
+    # ------------------------------------------
+    # TAB 5: LISTENING BRIEFING
+    # ------------------------------------------
     with tab5:
         st.subheader("🎧 Listening Briefing")
         st.write(day_data["listening"])
 
-    # 6. Detailed Writing Scenario
+    # ------------------------------------------
+    # TAB 6: DETAILED WRITING SCENARIO
+    # ------------------------------------------
     with tab6:
         st.subheader("✍️ Detailed Writing Scenario")
         st.write(f"**Nhiệm vụ:** {day_data['writing_prompt']}")
@@ -517,7 +550,9 @@ def main():
                             unsafe_allow_html=True,
                         )
 
-    # 7. Speaking Presentation
+    # ------------------------------------------
+    # TAB 7: SPEAKING PRESENTATION
+    # ------------------------------------------
     with tab7:
         st.subheader("📊 Speaking Presentation")
         st.write(f"**Chủ đề bài nói:** {day_data['speaking_prompt']}")
