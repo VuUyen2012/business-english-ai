@@ -5,7 +5,7 @@ import requests
 import streamlit as st
 
 # ==========================================
-# 1. CẤU HÌNH GIAO DIỆN & ÉP MÀU CHỮ ĐEN
+# 1. CẤU HÌNH GIAO DIỆN & CSS (ÉP CHỮ ĐÊN / NỀN HỒNG - TRẮNG)
 # ==========================================
 st.set_page_config(
     page_title="IELTS Speaking & Business English 30D",
@@ -17,44 +17,29 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    /* Nền ứng dụng chính */
+    /* Nền chính ứng dụng */
     .main { 
         background-color: #FFF5F5 !important; 
     }
     
-    /* Khung thẻ thông tin: Nền trắng, Chữ đen bắt buộc */
+    /* Ép buộc màu chữ đen (#1A202C) trên nền trắng cho các thẻ nội dung */
     .card-box {
         background-color: #FFFFFF !important;
         color: #1A202C !important;
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.06);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         border: 1px solid #FEB2B2;
         margin-bottom: 20px;
     }
     
-    /* Khóa tất cả font chữ bên trong card-box thành màu đen đậm */
+    /* Đảm bảo toàn bộ văn bản bên trong card-box luôn là chữ đen */
     .card-box *, .card-box h1, .card-box h2, .card-box h3, .card-box h4, 
-    .card-box p, .card-box span, .card-box div, .card-box b, .card-box i {
+    .card-box p, .card-box span, .card-box div, .card-box b, .card-box i, .card-box li {
         color: #1A202C !important;
     }
 
-    /* Nút bấm */
-    .stButton>button {
-        background-color: #E53E3E !important; 
-        color: #FFFFFF !important;
-        border-radius: 8px; 
-        border: none;
-        padding: 8px 16px; 
-        font-weight: bold; 
-        width: 100%;
-    }
-    .stButton>button:hover { 
-        background-color: #C53030 !important; 
-        color: #FFFFFF !important; 
-    }
-
-    /* Badge trạng thái */
+    /* Đèn báo trạng thái */
     .badge-pink {
         background-color: #FED7D7 !important; 
         color: #9B2C2C !important;
@@ -68,6 +53,21 @@ st.markdown(
         padding: 4px 12px; 
         border-radius: 16px; 
         font-weight: bold;
+    }
+
+    /* Nút bấm chủ đạo */
+    .stButton>button {
+        background-color: #E53E3E !important; 
+        color: #FFFFFF !important;
+        border-radius: 8px; 
+        border: none;
+        padding: 8px 16px; 
+        font-weight: bold; 
+        width: 100%;
+    }
+    .stButton>button:hover { 
+        background-color: #C53030 !important; 
+        color: #FFFFFF !important; 
     }
 </style>
 """,
@@ -113,10 +113,10 @@ if "groq_api_key" not in st.session_state:
 
 
 # ==========================================
-# 3. XỬ LÝ GROQ API (KHẮC PHỦC LỖI MODEL 400)
+# 3. XỬ LÝ GROQ API (SỬA LỖI MODEL 400 TOÀN BỘ KỸ NĂNG)
 # ==========================================
 def call_groq_llm(prompt, api_key, system_instruction=None):
-    """Tự động chuyển đổi giữa các Model ACTIVE mới nhất của Groq để sửa lỗi 400."""
+    """Sử dụng các model Active chuẩn của Groq để khắc phục triệt để lỗi 400 decommissioned."""
     if not api_key:
         st.error("Vui lòng nhập Groq API Key ở Sidebar bên trái!")
         return None
@@ -127,7 +127,6 @@ def call_groq_llm(prompt, api_key, system_instruction=None):
         "Content-Type": "application/json",
     }
 
-    # Danh sách Model ACTIVE chuẩn nhất của Groq
     active_models = [
         "llama-3.3-70b-versatile",
         "llama-3.1-8b-instant",
@@ -193,12 +192,12 @@ def transcribe_audio_groq(audio_bytes, api_key):
 
 
 # ==========================================
-# 4. MODULE PRONUNCIATION & INTONATION
+# 4. MODULE PRONUNCIATION & INTONATION (GHI ÂM, PHÁT LẠI & CHẤM ĐIỂM NGỮ ĐIỆU)
 # ==========================================
 def record_and_evaluate_speech(reference_text, context_label="Pronunciation"):
     st.subheader(f"🎙️ Ghi Âm & Chấm Điểm Giọng Nói ({context_label})")
 
-    # Native Streamlit Audio Input Widget
+    # Widget ghi âm trực tiếp
     audio_value = st.audio_input(
         "Nhấn nút Micro bên dưới để ghi âm bài đọc:",
         key=f"rec_{context_label}_{hash(reference_text)}",
@@ -207,7 +206,7 @@ def record_and_evaluate_speech(reference_text, context_label="Pronunciation"):
     if audio_value is not None:
         audio_bytes = audio_value.read()
 
-        # Phát lại audio trực tiếp
+        # Phát lại bản thu âm của người dùng
         st.markdown("#### 🔊 Nghe lại bản ghi âm của bạn:")
         st.audio(audio_bytes, format="audio/wav")
 
@@ -218,18 +217,14 @@ def record_and_evaluate_speech(reference_text, context_label="Pronunciation"):
             if not st.session_state.groq_api_key:
                 st.error("Vui lòng nhập Groq API Key ở Sidebar!")
             else:
-                with st.spinner(
-                    "Đang nhận diện giọng nói (Whisper Large V3)..."
-                ):
+                with st.spinner("Đang nhận diện giọng nói (Whisper Large V3)..."):
                     transcription = transcribe_audio_groq(
                         audio_bytes, st.session_state.groq_api_key
                     )
 
                 if transcription:
                     st.info(f'📝 **Văn bản nhận diện được:** "{transcription}"')
-                    with st.spinner(
-                        "AI đang phân tích ngữ điệu, trọng âm và độ trôi chảy..."
-                    ):
+                    with st.spinner("AI đang phân tích phát âm, ngữ điệu và trọng âm..."):
                         eval_prompt = f"""
                         Phân tích bài phát âm và ngữ điệu câu tiếng Anh của học viên:
                         - Câu gốc chuẩn (Reference): "{reference_text}"
@@ -350,7 +345,7 @@ for d in range(2, 31):
 
 
 # ==========================================
-# 6. GIAO DIỆN CHÍNH & TABS KỸ NĂNG
+# 6. GIAO DIỆN CHÍNH (ĐÃ XÓA TẮT TAB ASSESSMENT)
 # ==========================================
 def main():
     st.sidebar.title("🎓 English Mastery 30D")
@@ -411,7 +406,7 @@ def main():
 
     st.divider()
 
-    # 7 Tabs kỹ năng chính (Đã bỏ tab Assessment)
+    # 7 Tab kỹ năng chính (Đã xóa tab Assessment hoàn toàn)
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "🔤 Vocabulary & Games",
         "🗣️ Pronunciation",
@@ -449,7 +444,7 @@ def main():
             context_label="Pronunciation",
         )
 
-    # 3. Grammar Rules
+    # 3. Grammar Rules (Khắc phục lỗi Load Masterclass 400)
     with tab3:
         st.subheader(f"📐 Grammar Focus: {day_data['grammar_concept']}")
         st.markdown(
