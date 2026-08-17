@@ -7,7 +7,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. CẤU HÌNH GIAO DIỆN STYLE GOOGLE AI STUDIO
+# 1. CẤU HÌNH GIAO DIỆN STYLE GOOGLE AI STUDIO (FORCED BLACK TEXT)
 # ==========================================
 st.set_page_config(
     page_title="IELTS & Business English Studio B2->C1",
@@ -16,22 +16,26 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Injection CSS: Google AI Studio Light Theme & Forced Dark Text
+# Injection CSS: Ép toàn bộ ứng dụng sang chữ màu đen đậm #1A202C tuyệt đối
 st.markdown(
     """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
+    /* Ép nền ứng dụng hồng nhạt */
+    .stApp, [data-testid="stAppViewContainer"] { 
+        background-color: #FFF5F5 !important; 
     }
     
-    /* Nền chính hồng nhạt / kem nhẹ */
-    .stApp { 
-        background-color: #FFF8F8 !important; 
+    /* Ép tất cả văn bản trong ứng dụng thành màu ĐEN DẬM #1A202C */
+    html, body, p, span, div, h1, h2, h3, h4, h5, h6, li, a, label, strong, b, em, i,
+    [class*="css"], .stMarkdown, .stText, .stRadio label, .stCheckbox label,
+    [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span {
+        color: #1A202C !important;
+        font-family: 'Inter', sans-serif !important;
     }
-    
-    /* Thẻ Container Google Studio Style */
+
+    /* Thẻ Container Google Studio Style (Nền Trắng, Chữ Đen) */
     .studio-card {
         background-color: #FFFFFF !important;
         border: 1px solid #E2E8F0 !important;
@@ -41,10 +45,32 @@ st.markdown(
         box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
     }
     
-    /* Ép tất cả chữ thành màu Đen đậm (#1A202C) chống lỗi Dark mode */
-    .studio-card *, .studio-card h1, .studio-card h2, .studio-card h3, .studio-card h4, 
-    .studio-card p, .studio-card span, .studio-card div, .studio-card b, .studio-card i, .studio-card li {
+    .studio-card *, .studio-card p, .studio-card span, .studio-card h1, .studio-card h2, 
+    .studio-card h3, .studio-card h4, .studio-card div, .studio-card b, .studio-card i, .studio-card li {
         color: #1A202C !important;
+    }
+
+    /* Đổi màu chữ ô Input, Textarea & Selectbox thành Chữ Đen - Nền Trắng */
+    .stTextInput input, .stTextArea textarea, div[data-baseweb="select"] {
+        background-color: #FFFFFF !important;
+        color: #1A202C !important;
+        border: 1px solid #CBD5E0 !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Đổi màu Radio Buttons & Labels */
+    div[class*="stRadio"] label p {
+        color: #1A202C !important;
+        font-weight: 500 !important;
+    }
+
+    /* Style cho Tabs */
+    button[data-baseweb="tab"] p {
+        color: #2D3748 !important;
+        font-weight: 600 !important;
+    }
+    button[aria-selected="true"] p {
+        color: #E53E3E !important;
     }
 
     /* Badges */
@@ -67,7 +93,7 @@ st.markdown(
         font-weight: 700;
     }
 
-    /* Primary Buttons */
+    /* Nút bấm đỏ nổi bật */
     .stButton>button {
         background-color: #E53E3E !important; 
         color: #FFFFFF !important;
@@ -78,17 +104,12 @@ st.markdown(
         width: 100%;
         transition: all 0.2s ease;
     }
+    .stButton>button p {
+        color: #FFFFFF !important;
+    }
     .stButton>button:hover { 
         background-color: #C53030 !important; 
         box-shadow: 0 4px 12px rgba(229, 62, 62, 0.2) !important;
-    }
-    
-    /* Input fields */
-    .stTextInput input, .stTextArea textarea {
-        background-color: #FFFFFF !important;
-        color: #1A202C !important;
-        border: 1px solid #CBD5E0 !important;
-        border-radius: 8px !important;
     }
 </style>
 """,
@@ -99,7 +120,7 @@ st.markdown(
 # 2. BỘ PHÁT ÂM TTS (WEB SPEECH API)
 # ==========================================
 def render_tts_button(text, button_id):
-    """Tạo nút loa phát âm trực tiếp bằng JS Web Speech API chuẩn Google."""
+    """Tạo nút loa phát âm trực tiếp bằng JS Web Speech API."""
     js_code = f"""
     <button onclick="playTTS('{text}')" id="btn_{button_id}" style="
         background-color: #ED8936;
@@ -130,7 +151,7 @@ def render_tts_button(text, button_id):
 
 
 # ==========================================
-# 3. TIẾN ĐỘ & GROQ API
+# 3. LƯU TIẾN ĐỘ & GROQ API
 # ==========================================
 DATA_FILE = "user_progress.json"
 
@@ -209,7 +230,7 @@ def transcribe_audio_groq(audio_bytes, api_key):
 
 
 # ==========================================
-# 4. HÀM DÙNG CHUNG PHÁT ÂM & THU ÂM
+# 4. HÀM THU ÂM VÀ CHẤM ĐIỂM GIỌNG NÓI
 # ==========================================
 def record_and_evaluate_speech(reference_text, label):
     st.markdown(f"**Văn bản luyện đọc:** *\"{reference_text}\"*")
@@ -228,7 +249,7 @@ def record_and_evaluate_speech(reference_text, label):
                     Đánh giá phát âm C1/IELTS Speaking:
                     - Văn bản gốc: "{reference_text}"
                     - Học viên nói: "{transcribed}"
-                    Chấm điểm theo tiêu chí:
+                    Chấm điểm theo tiêu chí bằng tiếng Việt:
                     1. Điểm tổng quan (/10)
                     2. Trọng âm từ & Trọng âm câu (Sentence Stress)
                     3. Ngữ điệu (Rising/Falling Intonation)
@@ -243,7 +264,6 @@ def record_and_evaluate_speech(reference_text, label):
 # 5. DỮ LIỆU BÀI HỌC B2 -> C1 (30 NGÀY MASTERY)
 # ==========================================
 def get_curriculum_day(day_num):
-    # Cấu trúc mẫu chuẩn C1 cho ngày được chọn
     topics = [
         "Executive Corporate Strategy", "Cross-Border Negotiations", "Financial Risk Mitigation",
         "Change Management & Agility", "Brand Reputation & Crisis", "Digital Transformation",
@@ -251,16 +271,15 @@ def get_curriculum_day(day_num):
     ]
     topic = topics[(day_num - 1) % len(topics)]
     
-    # 10 Từ vựng B2 -> C1
     vocab = [
-        {"word": f"Consolidate", "pos": "verb", "en": "To combine into a single, stronger unit.", "vn": "Củng cố / Sáp nhập", "syn": "Merge, Strengthen", "example": "The company plans to consolidate its position in the European market."},
-        {"word": f"Feasibility", "pos": "noun", "en": "The degree to which something is possible.", "vn": "Tính khả thi", "syn": "Viability, Practicability", "example": "We conducted a feasibility study before launching the project."},
+        {"word": "Consolidate", "pos": "verb", "en": "To combine into a single, stronger unit.", "vn": "Củng cố / Sáp nhập", "syn": "Merge, Strengthen", "example": "The company plans to consolidate its position in the European market."},
+        {"word": "Feasibility", "pos": "noun", "en": "The degree to which something is possible.", "vn": "Tính khả thi", "syn": "Viability, Practicability", "example": "We conducted a feasibility study before launching the project."},
         {"word": "Disruption", "pos": "noun", "en": "Disturbance that alters a system.", "vn": "Sự đứt gãy / Đột phá", "syn": "Upheaval, Disturbance", "example": "AI technology is causing massive disruption in traditional industries."},
         {"word": "Benchmark", "pos": "noun", "en": "A standard against which things may be measured.", "vn": "Tiêu chuẩn đánh giá", "syn": "Criterion, Yardstick", "example": "Our Q3 performance set a new benchmark for the sector."},
         {"word": "Mitigate", "pos": "verb", "en": "Make less severe, serious, or painful.", "vn": "Giảm thiểu rủi ro", "syn": "Alleviate, Reduce", "example": "Steps were taken to mitigate the financial impact of the crisis."},
         {"word": "Leverage", "pos": "verb", "en": "Use something to maximum advantage.", "vn": "Tận dụng tối đa", "syn": "Exploit, Utilize", "example": "We must leverage our brand equity to launch new products."},
         {"word": "Scalability", "pos": "noun", "en": "Ability of a system to handle growing work.", "vn": "Khả năng mở rộng", "syn": "Expandability", "example": "Cloud architecture offers incredible business scalability."},
-        {"word": "Pivot", "pos": "verb", "en": "Change strategic direction abruptly.", "vn": "Chuyển hướng chiến lược", "syn": "Shift, Reorient", "example": "The startup pivoted from B2C to a enterprise B2B model."},
+        {"word": "Pivot", "pos": "verb", "en": "Change strategic direction abruptly.", "vn": "Chuyển hướng chiến lược", "syn": "Shift, Reorient", "example": "The startup pivoted from B2C to an enterprise B2B model."},
         {"word": "Stagnation", "pos": "noun", "en": "State of not flowing, moving, or changing.", "vn": "Sự đình trệ / Trì trệ", "syn": "Inaction, Standstill", "example": "Economic stagnation led to reduced corporate investment."},
         {"word": "Unprecedented", "pos": "adj", "en": "Never done or known before.", "vn": "Chưa từng có tiền lệ", "syn": "Unparalleled, Novel", "example": "The sector experienced unprecedented growth during the quarter."}
     ]
@@ -333,7 +352,6 @@ def get_curriculum_day(day_num):
 # 6. GIAO DIỆN CHÍNH & 8 TABS KỸ NĂNG
 # ==========================================
 def main():
-    # Sidebar
     st.sidebar.title("⚡ AI English Studio")
     st.sidebar.caption("Lộ trình B2 → C1 Mastery (30 Ngày)")
 
@@ -356,7 +374,7 @@ def main():
 
     day_data = get_curriculum_day(selected_day)
 
-    # Header Studio Style
+    # Header Studio
     st.markdown(
         f"""
         <div class="studio-card">
@@ -372,7 +390,6 @@ def main():
         unsafe_allow_html=True
     )
 
-    # 8 TABS KỸ NĂNG NÂNG CẤP
     t1, t2, t3, t4, t5, t6, t7, t8 = st.tabs([
         "🔤 Vocabulary & Games",
         "🗣️ Pronunciation",
@@ -385,7 +402,7 @@ def main():
     ])
 
     # ------------------------------------------
-    # TAB 1: VOCABULARY & 2 INTERACTIVE GAMES
+    # TAB 1: VOCABULARY & GAMES
     # ------------------------------------------
     with t1:
         st.subheader("📚 10 C1 Vocabulary Words of the Day")
@@ -412,7 +429,7 @@ def main():
         st.divider()
         st.subheader("🎮 Vocabulary Games Practice")
 
-        # Game 1: Multiple Choice (5 Questions)
+        # Game 1: Multiple Choice
         st.markdown("### 🕹️ Game 1: C1 Word Definition Quiz (5 Câu hỏi)")
         score_g1 = 0
         for i in range(5):
@@ -429,7 +446,7 @@ def main():
 
         st.divider()
 
-        # Game 2: Context Fill-in-the-blank (5 Questions)
+        # Game 2: Fill-in-the-blank
         st.markdown("### 🧩 Game 2: Context Sentence Fill-in-the-blank (5 Câu hỏi)")
         score_g2 = 0
         for i in range(5, 10):
@@ -443,7 +460,7 @@ def main():
             st.success(f"🎉 Điểm Game 2 của bạn: {score_g2}/5")
 
     # ------------------------------------------
-    # TAB 2: PRONUNCIATION (3 PARAGRAPHS/SENTENCES)
+    # TAB 2: PRONUNCIATION
     # ------------------------------------------
     with t2:
         st.subheader("🗣️ C1 Pronunciation & Intonation Drills")
@@ -453,7 +470,7 @@ def main():
             record_and_evaluate_speech(p, label=f"pron_tab_{selected_day}_{idx}")
 
     # ------------------------------------------
-    # TAB 3: GRAMMAR RULES & QUIZ
+    # TAB 3: GRAMMAR RULES
     # ------------------------------------------
     with t3:
         st.subheader(f"📐 {day_data['grammar']['title']}")
@@ -475,7 +492,7 @@ def main():
                 st.caption("✅ Chính xác!")
 
     # ------------------------------------------
-    # TAB 4: READING COMPREHENSION
+    # TAB 4: READING
     # ------------------------------------------
     with t4:
         st.subheader(f"📖 {day_data['reading']['title']}")
@@ -493,7 +510,7 @@ def main():
             st.text_input(f"Nhập từ trả lời Q{idx+1}:", key=f"r_fitb_{selected_day}_{idx}")
 
     # ------------------------------------------
-    # TAB 5: LISTENING BRIEFING
+    # TAB 5: LISTENING
     # ------------------------------------------
     with t5:
         st.subheader("🎧 Business Audio Briefing Script")
@@ -510,7 +527,7 @@ def main():
             st.text_input(f"Nhập câu trả lời Nghe Q{idx+1}:", key=f"l_fitb_{selected_day}_{idx}")
 
     # ------------------------------------------
-    # TAB 6: DETAILED WRITING SCENARIO
+    # TAB 6: WRITING
     # ------------------------------------------
     with t6:
         st.subheader("✍️ C1 Executive Writing Scenario")
@@ -537,7 +554,7 @@ def main():
                         st.markdown(f"<div class='studio-card'>{res}</div>", unsafe_allow_html=True)
 
     # ------------------------------------------
-    # TAB 7: SPEAKING PRESENTATION / PITCH
+    # TAB 7: SPEAKING
     # ------------------------------------------
     with t7:
         st.subheader("📊 Executive Speaking Pitch")
@@ -545,7 +562,7 @@ def main():
         record_and_evaluate_speech(day_data['speaking'], label=f"speak_pitch_{selected_day}")
 
     # ------------------------------------------
-    # TAB 8: TRANSLATION PRACTICE (10 CÂU)
+    # TAB 8: TRANSLATION
     # ------------------------------------------
     with t8:
         st.subheader("🌐 C1 Translation Practice (10 Câu Tiếng Việt → Tiếng Anh)")
