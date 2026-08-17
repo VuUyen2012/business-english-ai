@@ -236,6 +236,15 @@ def play_audio(text):
 
 def record_and_evaluate_speech(original_text, unique_id):
     safe_target = json.dumps(original_text)
+    
+    st.markdown("**🎙️ Option 1: Native Streamlit Recorder**")
+    audio_val = st.audio_input(f"Record speech for evaluation", key=f"rec_native_{unique_id}")
+    
+    if audio_val is not None:
+        st.audio(audio_val, format="audio/wav")
+        st.success("✅ Voice recorded successfully! Re-listen to your recording above or compare with native audio.")
+
+    st.markdown("**⚡ Option 2: Live Browser Pronunciation Auto-Scorer**")
     html_code = f"""
     <div style="font-family: 'Inter', sans-serif; margin: 5px 0; padding: 12px; border: 1.5px solid #fda4af; border-radius: 10px; background-color: #ffffff;">
         <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
@@ -250,9 +259,9 @@ def record_and_evaluate_speech(original_text, unique_id):
                 display: flex;
                 align-items: center;
                 gap: 6px;">
-                🎙️ Start Speaking Practice
+                🎙️ Start Live Recognition
             </button>
-            <span id="status_{unique_id}" style="font-size: 14px; font-weight: 500; color: #9f1239;">Click start and speak clearly...</span>
+            <span id="status_{unique_id}" style="font-size: 14px; font-weight: 500; color: #9f1239;">Click button and start reading...</span>
         </div>
         <div id="result_box_{unique_id}" style="margin-top: 10px; display: none; background-color: #fff1f2; padding: 10px; border-radius: 6px;">
             <p style="margin: 4px 0;"><b>Transcribed Text:</b> <i id="transcript_{unique_id}" style="color: #0f172a;">-</i></p>
@@ -309,71 +318,71 @@ def record_and_evaluate_speech(original_text, unique_id):
 
         recognition_{unique_id} = new SpeechRecognition();
         recognition_{unique_id}.lang = 'en-US';
-        recognition_{unique_id}.interimResults = false;
+        recognition_{unique_id}.continuous = true;
+        recognition_{unique_id}.interimResults = true;
         recognition_{unique_id}.maxAlternatives = 1;
 
         var btn = document.getElementById('btn_{unique_id}');
         var status = document.getElementById('status_{unique_id}');
+        var finalTranscript = '';
 
         recognition_{unique_id}.onstart = function() {{
             isRecording_{unique_id} = true;
             btn.style.backgroundColor = '#16a34a';
-            btn.innerHTML = '⏹️ Listening... Speak Now';
-            status.innerHTML = '🎙️ Micro active! Speak your response...';
+            btn.innerHTML = '⏹️ Recording... Click to Stop & Score';
+            status.innerHTML = '🎙️ Active! Speak clearly into your mic...';
             status.style.color = '#16a34a';
         }};
 
         recognition_{unique_id}.onerror = function(event) {{
             console.error("Speech Recognition Error:", event.error);
-            isRecording_{unique_id} = false;
-            btn.style.backgroundColor = '#e11d48';
-            btn.innerHTML = '🎙️ Start Speaking Practice';
-            
             if (event.error === 'no-speech') {{
-                status.innerHTML = '⚠️ No speech detected. Click button and speak right away!';
-            }} else if (event.error === 'not-allowed') {{
-                status.innerHTML = '⚠️ Microphone permission denied in browser settings.';
+                status.innerHTML = '⚠️ Listening... Speak continuously!';
+                status.style.color = '#d97706';
             }} else {{
-                status.innerHTML = '⚠️ Speech Error: ' + event.error;
-            }}
-            status.style.color = '#e11d48';
-        }};
-
-        recognition_{unique_id}.onend = function() {{
-            if (isRecording_{unique_id}) {{
-                stopRecognition_{unique_id}();
+                isRecording_{unique_id} = false;
+                btn.style.backgroundColor = '#e11d48';
+                btn.innerHTML = '🎙️ Start Live Recognition';
+                status.innerHTML = '⚠️ Error: ' + event.error + '. Try using Option 1 above.';
+                status.style.color = '#e11d48';
             }}
         }};
 
         recognition_{unique_id}.onresult = function(event) {{
-            var speechResult = event.results[0][0].transcript;
-            document.getElementById('result_box_{unique_id}').style.display = 'block';
-            document.getElementById('transcript_{unique_id}').innerText = speechResult;
-
-            var targetText = {safe_target};
-            var cleanTarget = cleanText(targetText);
-            var cleanSpeech = cleanText(speechResult);
-
-            var dist = levenshteinDistance(cleanTarget, cleanSpeech);
-            var maxLen = Math.max(cleanTarget.length, cleanSpeech.length);
-            var similarity = maxLen === 0 ? 100 : Math.round(((maxLen - dist) / maxLen) * 100);
-            if (similarity < 0) similarity = 0;
-
-            var scoreElem = document.getElementById('score_{unique_id}');
-            var feedbackElem = document.getElementById('feedback_{unique_id}');
-            
-            scoreElem.innerText = similarity + "%";
-            if (similarity >= 80) {{
-                scoreElem.style.color = "#16a34a";
-                feedbackElem.innerHTML = "<b style='color:#16a34a;'>🌟 Excellent pronunciation and clarity!</b>";
-            }} else if (similarity >= 60) {{
-                scoreElem.style.color = "#d97706";
-                feedbackElem.innerHTML = "<b style='color:#d97706;'>👍 Good effort! Focus on pace and articulation.</b>";
-            }} else {{
-                scoreElem.style.color = "#e11d48";
-                feedbackElem.innerHTML = "<b style='color:#e11d48;'>💡 Re-listen to native audio and try again.</b>";
+            for (var i = event.resultIndex; i < event.results.length; ++i) {{
+                if (event.results[i].isFinal) {{
+                    finalTranscript += event.results[i][0].transcript + ' ';
+                }}
             }}
-            stopRecognition_{unique_id}();
+            
+            if (finalTranscript.trim().length > 0) {{
+                document.getElementById('result_box_{unique_id}').style.display = 'block';
+                document.getElementById('transcript_{unique_id}').innerText = finalTranscript;
+
+                var targetText = {safe_target};
+                var cleanTarget = cleanText(targetText);
+                var cleanSpeech = cleanText(finalTranscript);
+
+                var dist = levenshteinDistance(cleanTarget, cleanSpeech);
+                var maxLen = Math.max(cleanTarget.length, cleanSpeech.length);
+                var similarity = maxLen === 0 ? 100 : Math.round(((maxLen - dist) / maxLen) * 100);
+                if (similarity < 0) similarity = 0;
+
+                var scoreElem = document.getElementById('score_{unique_id}');
+                var feedbackElem = document.getElementById('feedback_{unique_id}');
+                
+                scoreElem.innerText = similarity + "%";
+                if (similarity >= 80) {{
+                    scoreElem.style.color = "#16a34a";
+                    feedbackElem.innerHTML = "<b style='color:#16a34a;'>🌟 Excellent pronunciation and clarity!</b>";
+                }} else if (similarity >= 60) {{
+                    scoreElem.style.color = "#d97706";
+                    feedbackElem.innerHTML = "<b style='color:#d97706;'>👍 Good effort! Focus on pace and articulation.</b>";
+                }} else {{
+                    scoreElem.style.color = "#e11d48";
+                    feedbackElem.innerHTML = "<b style='color:#e11d48;'>💡 Re-listen to native audio and try again.</b>";
+                }}
+            }}
         }};
 
         try {{
@@ -389,10 +398,10 @@ def record_and_evaluate_speech(original_text, unique_id):
         var status = document.getElementById('status_{unique_id}');
         if (btn) {{
             btn.style.backgroundColor = '#e11d48';
-            btn.innerHTML = '🎙️ Start Speaking Practice';
+            btn.innerHTML = '🎙️ Start Live Recognition';
         }}
-        if (status && status.innerText.includes('Micro active')) {{
-            status.innerHTML = 'Speech processed.';
+        if (status) {{
+            status.innerHTML = 'Speech processing finished.';
             status.style.color = '#0f172a';
         }}
         if (recognition_{unique_id}) {{
@@ -401,7 +410,7 @@ def record_and_evaluate_speech(original_text, unique_id):
     }}
     </script>
     """
-    components.html(html_code, height=160)
+    components.html(html_code, height=210)
 
 def render_formatted_theory(theory_data):
     """Render lý thuyết đẹp mắt, tránh bị lồng dính raw JSON."""
@@ -447,7 +456,7 @@ def render_feedback_section(feedback_data):
         st.markdown(str(feedback_data))
 
 # ==========================================
-# 3. SIDEBAR & GROQ AI ENGINE
+# 3. SIDEBAR & GROQ AI ENGINE WITH FALLBACK
 # ==========================================
 with st.sidebar:
     st.markdown("### 🎓 **Apex English Coach**")
@@ -514,28 +523,44 @@ def generate_ai_response(prompt_input, seed_key=None):
     if seed_key:
         seed_value = int(hashlib.md5(seed_key.encode('utf-8')).hexdigest(), 16) % (2**31)
 
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt_input}
-        ],
-        "temperature": 0.1 if seed_key else 0.2,
-        "response_format": {"type": "json_object"}
-    }
-    if seed_value is not None:
-        payload["seed"] = seed_value
+    # Danh sách các Model tự động Fallback nếu gặp lỗi 404
+    candidate_models = [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-70b-versatile",
+        "llama3-70b-8192",
+        "mixtral-8x7b-32768"
+    ]
 
-    try:
-        res = requests.post(url, headers=headers, json=payload, timeout=60)
-        if res.status_code == 200:
-            return res.json()['choices'][0]['message']['content']
-        else:
-            st.error(f"API Error ({res.status_code}): {res.text}")
-            return None
-    except Exception as e:
-        st.error(f"Connection Error: {e}")
-        return None
+    last_err_msg = ""
+    for model_name in candidate_models:
+        payload = {
+            "model": model_name,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt_input}
+            ],
+            "temperature": 0.1 if seed_key else 0.2,
+            "response_format": {"type": "json_object"}
+        }
+        if seed_value is not None:
+            payload["seed"] = seed_value
+
+        try:
+            res = requests.post(url, headers=headers, json=payload, timeout=60)
+            if res.status_code == 200:
+                return res.json()['choices'][0]['message']['content']
+            elif res.status_code == 404 or "model_not_found" in res.text:
+                last_err_msg = f"Model {model_name} not available, switching to alternative model..."
+                continue
+            else:
+                st.error(f"API Error ({res.status_code}): {res.text}")
+                return None
+        except Exception as e:
+            last_err_msg = f"Connection Error: {e}"
+            break
+            
+    st.error(f"Groq API Error: {last_err_msg}")
+    return None
 
 def extract_json(raw_text):
     if not raw_text: return None
@@ -553,8 +578,10 @@ def get_or_generate_data(session_key, prompt_text, seed_key=None):
             clean = extract_json(raw)
             if clean:
                 try:
-                    st.session_state[session_key] = json.loads(clean, strict=False)
-                    save_data_to_file()
+                    parsed = json.loads(clean, strict=False)
+                    if isinstance(parsed, dict):
+                        st.session_state[session_key] = parsed
+                        save_data_to_file()
                 except Exception as e:
                     st.error(f"Data Parsing Error: {e}")
     return st.session_state.get(session_key, None)
@@ -615,7 +642,7 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name, seed_key=Non
         get_or_generate_data(f"{tab_key}_data", prompt_text, seed_key=seed_key)
 
     data = st.session_state.get(f"{tab_key}_data")
-    if data:
+    if isinstance(data, dict):
         if "lesson_theory" in data:
             st.markdown('<div class="hint-card">', unsafe_allow_html=True)
             st.markdown("### 📖 English Grammar Focus & Business Usage Rule")
@@ -633,16 +660,17 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name, seed_key=Non
             st.markdown('</div>', unsafe_allow_html=True)
 
         questions = data.get("questions", [])
-        if questions:
+        if isinstance(questions, list) and len(questions) > 0:
             for idx, q in enumerate(questions, 1):
+                if not isinstance(q, dict): continue
                 st.markdown(f"**Question {idx}: {q.get('question')}**")
                 opts = q.get('options', [])
                 key_input = f"q_{tab_key}_{idx}"
                 
                 if key_input not in st.session_state:
-                    st.session_state[key_input] = opts[0] if opts else ""
+                    st.session_state[key_input] = opts[0] if (isinstance(opts, list) and len(opts) > 0) else ""
 
-                if opts and len(opts) > 0:
+                if isinstance(opts, list) and len(opts) > 0:
                     current_val = st.session_state[key_input]
                     opt_idx = opts.index(current_val) if current_val in opts else 0
                     st.radio("Select Option:", opts, index=opt_idx, key=key_input)
@@ -653,6 +681,7 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name, seed_key=Non
             if st.button("Submit & Evaluate Answers", key=f"sub_{tab_key}", use_container_width=True):
                 user_answers = {}
                 for idx, q in enumerate(questions, 1):
+                    if not isinstance(q, dict): continue
                     q_id = str(q.get('id', idx))
                     key_input = f"q_{tab_key}_{idx}"
                     user_answers[q_id] = st.session_state.get(key_input)
@@ -661,12 +690,13 @@ def render_quiz_system(tab_key, prompt_text, btn_label, skill_name, seed_key=Non
                 st.session_state[f"{tab_key}_user_ans"] = user_answers
                 save_data_to_file()
 
-        if st.session_state.get(f"{tab_key}_sub", False):
+        if st.session_state.get(f"{tab_key}_sub", False) and isinstance(questions, list):
             user_ans = st.session_state.get(f"{tab_key}_user_ans", {})
             score = 0
             st.markdown("### 📊 Executive Assessment Results")
             
             for idx, q in enumerate(questions, 1):
+                if not isinstance(q, dict): continue
                 q_id = str(q.get('id', idx))
                 ans = user_ans.get(q_id)
                 raw_correct = q.get('answer') or q.get('correct_answer')
@@ -770,9 +800,10 @@ else:
             pv = f"Generate 10 C-suite Business English words for Day {day_selected} Topic '{day_topic}'. ALL text MUST be in 100% ENGLISH. Return JSON with key 'words' as array of 10 objects: 'word', 'ipa', 'english_def', 'synonyms', 'example'."
             v_data_dict = get_or_generate_data(f"v_data_full_{day_selected}", pv, seed_key=f"vocab_day_{day_selected}")
             
-            if v_data_dict and "words" in v_data_dict:
+            if isinstance(v_data_dict, dict) and "words" in v_data_dict and isinstance(v_data_dict["words"], list):
                 words = v_data_dict["words"]
                 for idx, w in enumerate(words, 1):
+                    if not isinstance(w, dict): continue
                     st.markdown(f"""
                     <div class="apex-card">
                         <h4 style="color:#e11d48 !important; margin:0;">{idx}. {w.get('word')} <span style="font-size:14px; color:#9f1239 !important;">/{w.get('ipa')}/</span></h4>
@@ -791,9 +822,10 @@ else:
             g_data = get_or_generate_data(f"g_data_{day_selected}", pgame, seed_key=f"game_day_{day_selected}") or {}
 
             if game_type == "Game 1: Fill in Missing Letters":
-                fill_list = g_data.get("fill_words", [])
-                if fill_list:
+                fill_list = g_data.get("fill_words", []) if isinstance(g_data, dict) else []
+                if isinstance(fill_list, list) and len(fill_list) > 0:
                     for idx, gw in enumerate(fill_list, 1):
+                        if not isinstance(gw, dict): continue
                         w_str = gw.get('word', '')
                         f_char = w_str[0] if w_str else 'A'
                         st.markdown(f"**Question {idx}:** English Clue: *{gw.get('hint_english')}*")
@@ -822,6 +854,7 @@ else:
                         ans_map = st.session_state.get(f"g1_ans_{day_selected}", {})
                         st.markdown("#### 📊 Game 1 Evaluation Results")
                         for idx, gw in enumerate(fill_list, 1):
+                            if not isinstance(gw, dict): continue
                             u_val = str(ans_map.get(idx, '')).strip().lower()
                             c_val = str(gw.get('word', '')).strip().lower()
                             if u_val == c_val and u_val != "":
@@ -832,12 +865,14 @@ else:
                         st.info(f"🏆 Game 1 Final Score: {g1_score}/{len(fill_list)}")
 
             elif game_type == "Game 2: Definition Matching Quiz":
-                mcq_list = g_data.get("mcq_words", [])
-                if mcq_list:
+                mcq_list = g_data.get("mcq_words", []) if isinstance(g_data, dict) else []
+                if isinstance(mcq_list, list) and len(mcq_list) > 0:
                     for idx, mw in enumerate(mcq_list, 1):
+                        if not isinstance(mw, dict): continue
                         st.markdown(f"**Question {idx}: What is the exact meaning of '{mw.get('word')}'?**")
                         key_g2_in = f"g2_in_{day_selected}_{idx}"
                         opts = mw.get('options', [])
+                        if not isinstance(opts, list): opts = []
                         if key_g2_in not in st.session_state:
                             st.session_state[key_g2_in] = opts[0] if opts else ""
 
@@ -861,6 +896,7 @@ else:
                         ans_map = st.session_state.get(f"g2_ans_{day_selected}", {})
                         st.markdown("#### 📊 Game 2 Evaluation Results")
                         for idx, mw in enumerate(mcq_list, 1):
+                            if not isinstance(mw, dict): continue
                             u_v = ans_map.get(idx)
                             c_v = mw.get('correct_option')
                             is_c, disp = evaluate_answer(u_v, c_v, mw.get('options', []))
@@ -877,16 +913,17 @@ else:
             pp = f"Generate 5 short executive speech passages (2-3 sentences each) on Topic '{day_topic}'. ALL text MUST be in ENGLISH. Return JSON object with key 'passages' containing an array of 5 strings."
             p_dict = get_or_generate_data(f"p_passages_dict_{day_selected}", pp, seed_key=f"pron_passages_{day_selected}")
             
-            p_list = p_dict.get("passages", []) if p_dict else []
-            for idx, text_p in enumerate(p_list, 1):
-                st.markdown(f"""
-                <div class="apex-card">
-                    <h4>Passage {idx}:</h4>
-                    <p style="font-size:16px;">{text_p}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                play_audio(text_p)
-                record_and_evaluate_speech(text_p, f"day_{day_selected}_p_{idx}")
+            p_list = p_dict.get("passages", []) if isinstance(p_dict, dict) else []
+            if isinstance(p_list, list):
+                for idx, text_p in enumerate(p_list, 1):
+                    st.markdown(f"""
+                    <div class="apex-card">
+                        <h4>Passage {idx}:</h4>
+                        <p style="font-size:16px;">{text_p}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    play_audio(text_p)
+                    record_and_evaluate_speech(text_p, f"day_{day_selected}_p_{idx}")
 
         # --- 3. GRAMMAR RULES ---
         with tab_g:
@@ -925,7 +962,7 @@ else:
             
             w_data = get_or_generate_data(f"w_prompt_{day_selected}", pwrit, seed_key=f"write_d{day_selected}")
             
-            if w_data and "writing_prompt" in w_data:
+            if isinstance(w_data, dict) and "writing_prompt" in w_data and isinstance(w_data["writing_prompt"], dict):
                 wp = w_data["writing_prompt"]
                 st.markdown('<div class="apex-card">', unsafe_allow_html=True)
                 st.markdown("#### 📄 Executive Business Scenario")
@@ -966,7 +1003,7 @@ else:
                             st.error(f"Evaluation Parsing Error: {e}")
 
             w_eval_data = st.session_state.get(f"w_eval_res_{day_selected}")
-            if w_eval_data:
+            if isinstance(w_eval_data, dict):
                 st.markdown("### 📊 Executive AI Writing Evaluation")
                 score = w_eval_data.get("overall_score", 0)
                 st.metric("Writing Mastery Score", f"{score}/100")
@@ -993,7 +1030,8 @@ else:
             
             s_data = get_or_generate_data(f"s_prompt_{day_selected}", pspeak, seed_key=f"speak_d{day_selected}")
             
-            if s_data and "speaking_prompt" in s_data:
+            # FIX TRIỆT ĐỂ LỖI LINE 1000: Kiểm tra an toàn dữ liệu kiểu dictionary
+            if isinstance(s_data, dict) and "speaking_prompt" in s_data and isinstance(s_data["speaking_prompt"], dict):
                 sp = s_data["speaking_prompt"]
                 st.markdown('<div class="apex-card">', unsafe_allow_html=True)
                 st.markdown("#### 📈 Strategic Context & Key Metrics")
@@ -1040,7 +1078,7 @@ else:
                             st.error(f"Speech Analysis Error: {e}")
 
             s_eval_data = st.session_state.get(f"s_eval_res_{day_selected}")
-            if s_eval_data:
+            if isinstance(s_eval_data, dict):
                 st.markdown("### 📊 Presentation Feedback & AI Score")
                 st.metric("Clarity & Impact Score", f"{s_eval_data.get('clarity_impact_score', 0)}/100")
                 
@@ -1067,12 +1105,13 @@ else:
             
             t_data = get_or_generate_data(f"t_prompt_{day_selected}", ptrans, seed_key=f"trans_d{day_selected}")
             
-            if t_data and "translations" in t_data:
+            if isinstance(t_data, dict) and "translations" in t_data and isinstance(t_data["translations"], list):
                 t_list = t_data["translations"]
                 for idx, item in enumerate(t_list, 1):
+                    if not isinstance(item, dict): continue
                     st.markdown(f'<div class="apex-card">', unsafe_allow_html=True)
                     st.markdown(f"**Sentence {idx}:** {item.get('source_sentence_en')}")
-                    play_audio(item.get('source_sentence_en'))
+                    play_audio(item.get('source_sentence_en', ''))
                     
                     key_t_in = f"t_user_in_{day_selected}_{idx}"
                     if key_t_in not in st.session_state:
@@ -1088,6 +1127,7 @@ else:
                 if st.session_state.get(f"t_sub_{day_selected}", False):
                     st.markdown("### 📊 Benchmark C-Suite Reference Translations")
                     for idx, item in enumerate(t_list, 1):
+                        if not isinstance(item, dict): continue
                         user_ans = st.session_state.get(f"t_user_in_{day_selected}_{idx}", "")
                         st.markdown(f'<div class="correct-card">', unsafe_allow_html=True)
                         st.markdown(f"**Sentence {idx} Reference Solution:**")
@@ -1116,6 +1156,7 @@ else:
 
             st.write("---")
             for idx, err in enumerate(err_list, 1):
+                if not isinstance(err, dict): continue
                 st.markdown(f'<div class="wrong-card">', unsafe_allow_html=True)
                 st.markdown(f"#### Error #{idx} [{err.get('skill', 'General')}]")
                 st.markdown(f"**Question:** {err.get('question')}")
