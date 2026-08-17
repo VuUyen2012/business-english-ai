@@ -234,118 +234,174 @@ def play_audio(text):
     """
     components.html(html_code, height=45)
 
-def render_pronunciation_recorder(target_text, passage_id):
-    """Ghi âm trực tiếp qua Micro trình duyệt & So sánh phát âm tự động bằng AI Web Speech API."""
-    safe_target = json.dumps(target_text)
+def record_and_evaluate_speech(original_text, unique_id):
+    safe_target = json.dumps(original_text)
     html_code = f"""
-    <div style="font-family: sans-serif; margin-top: 10px; padding: 12px; background: #ffffff; border: 1px solid #fecdd3; border-radius: 8px;">
-        <button id="recBtn_{passage_id}" onclick="toggleRecording_{passage_id}()" style="
-            background-color: #e11d48; color: white; border: none; padding: 8px 16px; 
-            border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">
-            🎙️ Start Speaking Practice
-        </button>
-        <span id="status_{passage_id}" style="margin-left: 10px; font-weight: 500; color: #881337;">Click button & read the passage above.</span>
-        
-        <div id="result_box_{passage_id}" style="margin-top: 12px; display: none;">
-            <p style="margin: 4px 0;"><b>Transcribed Speech:</b> <i id="user_speech_{passage_id}" style="color: #0f172a;"></i></p>
-            <p style="margin: 4px 0;"><b>Accuracy Score:</b> <b id="score_{passage_id}" style="font-size: 16px;"></b></p>
-            <p id="feedback_{passage_id}" style="margin: 4px 0; font-weight: 500;"></p>
+    <div style="font-family: 'Inter', sans-serif; margin: 5px 0; padding: 12px; border: 1.5px solid #fda4af; border-radius: 10px; background-color: #ffffff;">
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <button id="btn_{unique_id}" onclick="toggleRecognition_{unique_id}()" style="
+                background-color: #e11d48;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 6px;">
+                🎙️ Start Speaking Practice
+            </button>
+            <span id="status_{unique_id}" style="font-size: 14px; font-weight: 500; color: #9f1239;">Click start and speak clearly...</span>
+        </div>
+        <div id="result_box_{unique_id}" style="margin-top: 10px; display: none; background-color: #fff1f2; padding: 10px; border-radius: 6px;">
+            <p style="margin: 4px 0;"><b>Transcribed Text:</b> <i id="transcript_{unique_id}" style="color: #0f172a;">-</i></p>
+            <p style="margin: 4px 0;"><b>Pronunciation Score:</b> <span id="score_{unique_id}" style="font-weight: 700; font-size: 16px;">-</span></p>
+            <div id="feedback_{unique_id}" style="margin-top: 5px; font-size: 13px;"></div>
         </div>
     </div>
 
     <script>
-        var recognition_{passage_id} = null;
-        var isRecording_{passage_id} = false;
+    var isRecording_{unique_id} = false;
+    var recognition_{unique_id} = null;
 
-        function toggleRecording_{passage_id}() {{
-            var btn = document.getElementById("recBtn_{passage_id}");
-            var status = document.getElementById("status_{passage_id}");
-            
-            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {{
-                alert("Speech recognition is not supported in this browser. Please use Chrome or Edge.");
-                return;
-            }}
+    function levenshteinDistance(a, b) {{
+        if (a.length === 0) return b.length;
+        if (b.length === 0) return a.length;
+        var matrix = [];
+        for (var i = 0; i <= b.length; i++) matrix[i] = [i];
+        for (var j = 0; j <= a.length; j++) matrix[0][j] = j;
 
-            if (!isRecording_{passage_id}) {{
-                var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                recognition_{passage_id} = new SpeechRecognition();
-                recognition_{passage_id}.lang = 'en-US';
-                recognition_{passage_id}.interimResults = false;
-                recognition_{passage_id}.maxAlternatives = 1;
-
-                recognition_{passage_id}.onstart = function() {{
-                    isRecording_{passage_id} = true;
-                    btn.innerHTML = "⏹️ Stop Recording";
-                    btn.style.backgroundColor = "#be123c";
-                    status.innerHTML = "Listening... Speak clearly into your mic!";
-                }};
-
-                recognition_{passage_id}.onresult = function(event) {{
-                    var spokenText = event.results[0][0].transcript;
-                    evaluateSpeech_{passage_id}(spokenText, {safe_target});
-                }};
-
-                recognition_{passage_id}.onerror = function(event) {{
-                    status.innerHTML = "Error: " + event.error;
-                    btn.innerHTML = "🎙️ Start Speaking Practice";
-                    btn.style.backgroundColor = "#e11d48";
-                    isRecording_{passage_id} = false;
-                }};
-
-                recognition_{passage_id}.onend = function() {{
-                    btn.innerHTML = "🎙️ Start Speaking Practice";
-                    btn.style.backgroundColor = "#e11d48";
-                    isRecording_{passage_id} = false;
-                }};
-
-                recognition_{passage_id}.start();
-            }} else {{
-                if (recognition_{passage_id}) {{
-                    recognition_{passage_id}.stop();
+        for (var i = 1; i <= b.length; i++) {{
+            for (var j = 1; j <= a.length; j++) {{
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {{
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                }} else {{
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1,
+                        matrix[i][j - 1] + 1,
+                        matrix[i - 1][j] + 1
+                    );
                 }}
             }}
         }}
+        return matrix[b.length][a.length];
+    }}
 
-        function cleanStr(str) {{
-            return str.toLowerCase().replace(/[^a-zA-Z0-9 ]/g, "").trim().split(/\\s+/);
+    function cleanText(text) {{
+        return text.toLowerCase().replace(/[^a-z0-9\\s]/g, '').trim();
+    }}
+
+    function toggleRecognition_{unique_id}() {{
+        if (isRecording_{unique_id}) {{
+            stopRecognition_{unique_id}();
+        }} else {{
+            startRecognition_{unique_id}();
+        }}
+    }}
+
+    function startRecognition_{unique_id}() {{
+        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {{
+            alert("Your browser does not support Speech Recognition. Please use Google Chrome or MS Edge.");
+            return;
         }}
 
-        function evaluateSpeech_{passage_id}(spoken, target) {{
-            document.getElementById("result_box_{passage_id}").style.display = "block";
-            document.getElementById("user_speech_{passage_id}").innerText = '"' + spoken + '"';
-            
-            var targetWords = cleanStr(target);
-            var spokenWords = cleanStr(spoken);
-            
-            var matches = 0;
-            targetWords.forEach(function(w) {{
-                if (spokenWords.includes(w)) matches++;
-            }});
+        recognition_{unique_id} = new SpeechRecognition();
+        recognition_{unique_id}.lang = 'en-US';
+        recognition_{unique_id}.interimResults = false;
+        recognition_{unique_id}.maxAlternatives = 1;
 
-            var scorePct = Math.round((matches / Math.max(targetWords.length, 1)) * 100);
-            var scoreEl = document.getElementById("score_{passage_id}");
-            var feedbackEl = document.getElementById("feedback_{passage_id}");
+        var btn = document.getElementById('btn_{unique_id}');
+        var status = document.getElementById('status_{unique_id}');
+
+        recognition_{unique_id}.onstart = function() {{
+            isRecording_{unique_id} = true;
+            btn.style.backgroundColor = '#16a34a';
+            btn.innerHTML = '⏹️ Listening... Speak Now';
+            status.innerHTML = '🎙️ Micro active! Speak your response...';
+            status.style.color = '#16a34a';
+        }};
+
+        recognition_{unique_id}.onerror = function(event) {{
+            console.error("Speech Recognition Error:", event.error);
+            isRecording_{unique_id} = false;
+            btn.style.backgroundColor = '#e11d48';
+            btn.innerHTML = '🎙️ Start Speaking Practice';
             
-            scoreEl.innerText = scorePct + "%";
-            
-            if (scorePct >= 80) {{
-                scoreEl.style.color = "#16a34a";
-                feedbackEl.innerHTML = "🎉 Excellent pronunciation and clarity!";
-                feedbackEl.style.color = "#16a34a";
-            }} else if (scorePct >= 50) {{
-                scoreEl.style.color = "#d97706";
-                feedbackEl.innerHTML = "👍 Good effort! Listen to the audio model again to improve word stress.";
-                feedbackEl.style.color = "#d97706";
+            if (event.error === 'no-speech') {{
+                status.innerHTML = '⚠️ No speech detected. Click button and speak right away!';
+            }} else if (event.error === 'not-allowed') {{
+                status.innerHTML = '⚠️ Microphone permission denied in browser settings.';
             }} else {{
-                scoreEl.style.color = "#e11d48";
-                feedbackEl.innerHTML = "💡 Try speaking a bit slower and articulate each word clearly.";
-                feedbackEl.style.color = "#e11d48";
+                status.innerHTML = '⚠️ Speech Error: ' + event.error;
             }}
-            document.getElementById("status_{passage_id}").innerText = "Analysis Complete!";
+            status.style.color = '#e11d48';
+        }};
+
+        recognition_{unique_id}.onend = function() {{
+            if (isRecording_{unique_id}) {{
+                stopRecognition_{unique_id}();
+            }}
+        }};
+
+        recognition_{unique_id}.onresult = function(event) {{
+            var speechResult = event.results[0][0].transcript;
+            document.getElementById('result_box_{unique_id}').style.display = 'block';
+            document.getElementById('transcript_{unique_id}').innerText = speechResult;
+
+            var targetText = {safe_target};
+            var cleanTarget = cleanText(targetText);
+            var cleanSpeech = cleanText(speechResult);
+
+            var dist = levenshteinDistance(cleanTarget, cleanSpeech);
+            var maxLen = Math.max(cleanTarget.length, cleanSpeech.length);
+            var similarity = maxLen === 0 ? 100 : Math.round(((maxLen - dist) / maxLen) * 100);
+            if (similarity < 0) similarity = 0;
+
+            var scoreElem = document.getElementById('score_{unique_id}');
+            var feedbackElem = document.getElementById('feedback_{unique_id}');
+            
+            scoreElem.innerText = similarity + "%";
+            if (similarity >= 80) {{
+                scoreElem.style.color = "#16a34a";
+                feedbackElem.innerHTML = "<b style='color:#16a34a;'>🌟 Excellent pronunciation and clarity!</b>";
+            }} else if (similarity >= 60) {{
+                scoreElem.style.color = "#d97706";
+                feedbackElem.innerHTML = "<b style='color:#d97706;'>👍 Good effort! Focus on pace and articulation.</b>";
+            }} else {{
+                scoreElem.style.color = "#e11d48";
+                feedbackElem.innerHTML = "<b style='color:#e11d48;'>💡 Re-listen to native audio and try again.</b>";
+            }}
+            stopRecognition_{unique_id}();
+        }};
+
+        try {{
+            recognition_{unique_id}.start();
+        }} catch(e) {{
+            console.error("Start failed:", e);
         }}
+    }}
+
+    function stopRecognition_{unique_id}() {{
+        isRecording_{unique_id} = false;
+        var btn = document.getElementById('btn_{unique_id}');
+        var status = document.getElementById('status_{unique_id}');
+        if (btn) {{
+            btn.style.backgroundColor = '#e11d48';
+            btn.innerHTML = '🎙️ Start Speaking Practice';
+        }}
+        if (status && status.innerText.includes('Micro active')) {{
+            status.innerHTML = 'Speech processed.';
+            status.style.color = '#0f172a';
+        }}
+        if (recognition_{unique_id}) {{
+            try {{ recognition_{unique_id}.stop(); }} catch(e) {{}}
+        }}
+    }}
     </script>
     """
-    components.html(html_code, height=180)
+    components.html(html_code, height=160)
 
 def render_formatted_theory(theory_data):
     """Render lý thuyết đẹp mắt, tránh bị lồng dính raw JSON."""
@@ -830,201 +886,240 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
                 play_audio(text_p)
-                render_pronunciation_recorder(text_p, f"d{day_selected}_p{idx}")
+                record_and_evaluate_speech(text_p, f"day_{day_selected}_p_{idx}")
 
         # --- 3. GRAMMAR RULES ---
         with tab_g:
             st.markdown(f"### 📐 Grammar Focus: {day_grammar}")
-            p_gram = f"""Generate a comprehensive executive grammar lesson for '{day_grammar}' applied to '{day_topic}'.
-            ALL text MUST be 100% ENGLISH.
-            Return JSON with:
-            1. 'lesson_theory': object with 'rule_explanation', 'business_context', 'common_csuite_pitfalls'
-            2. 'questions': array of 5 MCQ objects ('id', 'question', 'options', 'answer', 'explanation')."""
-            render_quiz_system(f"g_rule_{day_selected}", p_gram, "Load Grammar Assessment", "Grammar", seed_key=f"gram_day_{day_selected}")
+            pgram = f"""Generate an in-depth C1/C2 executive grammar lesson for '{day_grammar}' applied to '{day_topic}'. 
+            Include:
+            1. 'lesson_theory': Object with 'explanation', 'business_rules', 'c_suite_examples'.
+            2. 'questions': Array of 5 Multiple Choice Questions testing this grammar rule. Each question must have 'id', 'question', 'options', 'answer', 'explanation'.
+            ALL text MUST be in 100% ENGLISH. Return JSON object."""
+            
+            render_quiz_system(f"grammar_{day_selected}", pgram, "Load Grammar Masterclass", "Grammar", seed_key=f"grammar_d{day_selected}")
 
         # --- 4. READING ---
         with tab_r:
-            st.markdown(f"### 📖 Case Reading Practice: {day_topic}")
-            p_read = f"""Generate an executive business reading comprehension case study on '{day_topic}'.
-            ALL text MUST be 100% ENGLISH.
-            Return JSON with:
-            1. 'passage': long executive case study (250-300 words).
-            2. 'questions': array of 5 MCQ objects ('id', 'question', 'options', 'answer', 'explanation')."""
-            render_quiz_system(f"r_case_{day_selected}", p_read, "Load Reading Case Study", "Reading", seed_key=f"read_day_{day_selected}")
+            st.markdown(f"### 📖 Case Study Reading: {day_topic}")
+            pread = f"""Generate an executive business case study passage (250-300 words) on '{day_topic}'.
+            Include 'passage' text and 'questions' array of 4 Multiple Choice Questions ('id', 'question', 'options', 'answer', 'explanation').
+            ALL text MUST be in 100% ENGLISH. Return JSON object."""
+            
+            render_quiz_system(f"reading_{day_selected}", pread, "Load Case Reading", "Reading", seed_key=f"read_d{day_selected}")
 
         # --- 5. LISTENING BRIEFING ---
         with tab_l:
-            st.markdown(f"### 🎧 Listening Briefing: {day_topic}")
-            p_listen = f"""Generate an executive audio briefing script on '{day_topic}'.
-            ALL text MUST be 100% ENGLISH.
-            Return JSON with:
-            1. 'passage': spoken briefing script (200 words).
-            2. 'questions': array of 5 MCQ objects ('id', 'question', 'options', 'answer', 'explanation')."""
-            render_quiz_system(f"l_brief_{day_selected}", p_listen, "Load Listening Briefing", "Listening", seed_key=f"listen_day_{day_selected}")
+            st.markdown(f"### 🎧 C-Suite Audio Briefing: {day_topic}")
+            plist = f"""Generate a C-suite executive briefing transcript ('passage', 150-200 words) on '{day_topic}'.
+            Include 'questions' array of 4 Multiple Choice Questions ('id', 'question', 'options', 'answer', 'explanation').
+            ALL text MUST be in 100% ENGLISH. Return JSON object."""
+            
+            render_quiz_system(f"listening_{day_selected}", plist, "Load Audio Briefing", "Listening", seed_key=f"listen_d{day_selected}")
 
         # --- 6. DETAILED WRITING SCENARIO ---
         with tab_w:
             st.markdown(f"### ✍️ Executive Writing Scenario: {day_topic}")
-            p_write_scen = f"Generate an executive writing scenario for Topic '{day_topic}'. ALL text MUST be in 100% ENGLISH. Return JSON with 'prompt_scenario' string."
-            w_scen_data = get_or_generate_data(f"w_scen_{day_selected}", p_write_scen, seed_key=f"write_scen_{day_selected}") or {}
-            scen_text = w_scen_data.get("prompt_scenario", f"Draft an executive memo regarding {day_topic} for the Board of Directors.")
+            pwrit = f"""Generate a detailed executive writing scenario for '{day_topic}'.
+            Return JSON object with key 'writing_prompt' containing: 'scenario_background', 'task_instruction', 'target_vocabulary_to_use', 'key_metrics_to_include'."""
             
-            st.markdown(f"""
-            <div class="apex-card">
-                <h4>📋 Business Writing Task:</h4>
-                <p style="font-size:15px;">{scen_text}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            w_data = get_or_generate_data(f"w_prompt_{day_selected}", pwrit, seed_key=f"write_d{day_selected}")
             
-            key_w_text = f"user_w_text_{day_selected}"
-            if key_w_text not in st.session_state:
-                st.session_state[key_w_text] = ""
-                
-            user_w = st.text_area("Write your response (Memo/Email/Report):", value=st.session_state[key_w_text], height=200, key=key_w_text)
-            
-            if st.button("Evaluate Writing Response", key=f"btn_eval_w_{day_selected}", use_container_width=True):
-                if not user_w.strip():
-                    st.warning("Please enter your writing response before submitting.")
-                else:
-                    p_eval_w = f"""Evaluate this executive writing response for topic '{day_topic}'.
-                    Prompt: {scen_text}
-                    User Text: {user_w}
-                    ALL feedback MUST be 100% ENGLISH.
-                    Return JSON with keys: 'overall_score' (string e.g. '85/100'), 'grammatical_correction', 'tone_and_conciseness', 'executive_vocabulary_enhancements'."""
-                    
-                    with st.spinner("AI Executive Coach analyzing writing..."):
-                        raw_w_fb = generate_ai_response(p_eval_w)
-                        clean_w_fb = extract_json(raw_w_fb)
-                        if clean_w_fb:
-                            try:
-                                fb_dict = json.loads(clean_w_fb, strict=False)
-                                st.session_state[f"w_fb_{day_selected}"] = fb_dict
-                                save_data_to_file()
-                            except Exception as e:
-                                st.error(f"Feedback error: {e}")
-
-            w_fb = st.session_state.get(f"w_fb_{day_selected}")
-            if w_fb:
+            if w_data and "writing_prompt" in w_data:
+                wp = w_data["writing_prompt"]
                 st.markdown('<div class="apex-card">', unsafe_allow_html=True)
-                st.markdown(f"### 📊 Writing Feedback (Score: {w_fb.get('overall_score', 'N/A')})")
-                render_feedback_section(w_fb)
+                st.markdown("#### 📄 Executive Business Scenario")
+                st.write(wp.get("scenario_background", ""))
+                st.markdown("**🎯 Task Instruction:**")
+                st.write(wp.get("task_instruction", ""))
+                st.markdown(f"**💡 Target Keywords:** `{wp.get('target_vocabulary_to_use', '')}`")
                 st.markdown('</div>', unsafe_allow_html=True)
+
+            user_writing_key = f"user_w_text_{day_selected}"
+            if user_writing_key not in st.session_state:
+                st.session_state[user_writing_key] = ""
+
+            user_text = st.text_area("Write your executive response below:", value=st.session_state[user_writing_key], height=220, key=user_writing_key)
+
+            if st.button("Submit Executive Writing for AI Evaluation", key=f"btn_eval_w_{day_selected}", use_container_width=True):
+                if len(user_text.strip()) < 30:
+                    st.warning("Please enter a more detailed writing response (minimum 30 words) for AI evaluation.")
+                else:
+                    peval = f"""Evaluate this executive writing response based on C-suite standards.
+                    Topic: '{day_topic}'
+                    Grammar Target: '{day_grammar}'
+                    User Response: "{user_text}"
+                    Return JSON object with keys:
+                    'overall_score' (out of 100),
+                    'grammar_feedback' (list of detailed points),
+                    'vocabulary_tone_feedback' (list of detailed points),
+                    'executive_rewrite' (polished version of user response).
+                    ALL text MUST be in ENGLISH."""
+                    
+                    eval_res = generate_ai_response(peval)
+                    clean_eval = extract_json(eval_res)
+                    if clean_eval:
+                        try:
+                            st.session_state[f"w_eval_res_{day_selected}"] = json.loads(clean_eval, strict=False)
+                            save_data_to_file()
+                        except Exception as e:
+                            st.error(f"Evaluation Parsing Error: {e}")
+
+            w_eval_data = st.session_state.get(f"w_eval_res_{day_selected}")
+            if w_eval_data:
+                st.markdown("### 📊 Executive AI Writing Evaluation")
+                score = w_eval_data.get("overall_score", 0)
+                st.metric("Writing Mastery Score", f"{score}/100")
+                
+                st.markdown('<div class="apex-card">', unsafe_allow_html=True)
+                st.markdown("#### 🔍 Detailed Feedback")
+                st.markdown("**Grammar & Syntax:**")
+                render_feedback_section(w_eval_data.get("grammar_feedback", []))
+                st.markdown("**Tone & C-Suite Vocabulary:**")
+                render_feedback_section(w_eval_data.get("vocabulary_tone_feedback", []))
+                st.markdown("</div>", unsafe_allow_html=True)
+
+                st.markdown('<div class="correct-card">', unsafe_allow_html=True)
+                st.markdown("#### ✨ Polished Executive Rewrite")
+                st.write(w_eval_data.get("executive_rewrite", ""))
+                st.markdown("</div>", unsafe_allow_html=True)
 
         # --- 7. DATA-DRIVEN SPEAKING ---
         with tab_s:
             st.markdown(f"### 💬 Data-Driven Executive Speaking: {day_topic}")
-            p_spk_scen = f"Generate a C-suite presentation scenario with key metrics on '{day_topic}'. ALL text MUST be in 100% ENGLISH. Return JSON with 'speaking_prompt' string."
-            s_scen_data = get_or_generate_data(f"s_scen_{day_selected}", p_spk_scen, seed_key=f"spk_scen_{day_selected}") or {}
-            spk_prompt = s_scen_data.get("speaking_prompt", f"Present a 2-minute strategic update on {day_topic} using key quarterly data points.")
+            pspeak = f"""Generate a C-suite presentation challenge for '{day_topic}'.
+            Return JSON object with key 'speaking_prompt':
+            'presentation_context', 'key_data_points', 'questions_to_address'."""
             
-            st.markdown(f"""
-            <div class="apex-card">
-                <h4>🎯 Speaking Presentation Prompt:</h4>
-                <p style="font-size:15px;">{spk_prompt}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            s_data = get_or_generate_data(f"s_prompt_{day_selected}", pspeak, seed_key=f"speak_d{day_selected}")
             
-            key_s_text = f"user_s_text_{day_selected}"
-            if key_s_text not in st.session_state:
-                st.session_state[key_s_text] = ""
-                
-            user_s = st.text_area("Type your presentation script or notes for evaluation:", value=st.session_state[key_s_text], height=180, key=key_s_text)
-            
-            if st.button("Evaluate Presentation Speech", key=f"btn_eval_s_{day_selected}", use_container_width=True):
-                if not user_s.strip():
-                    st.warning("Please enter your speech draft before submitting.")
-                else:
-                    p_eval_s = f"""Evaluate this executive speaking response for topic '{day_topic}'.
-                    Prompt: {spk_prompt}
-                    User Speech Draft: {user_s}
-                    ALL feedback MUST be 100% ENGLISH.
-                    Return JSON with keys: 'overall_score' (string e.g. '90/100'), 'rhetorical_impact', 'persuasive_structure', 'vocabulary_refinements'."""
-                    
-                    with st.spinner("AI Coach analyzing speaking strategy..."):
-                        raw_s_fb = generate_ai_response(p_eval_s)
-                        clean_s_fb = extract_json(raw_s_fb)
-                        if clean_s_fb:
-                            try:
-                                fb_s_dict = json.loads(clean_s_fb, strict=False)
-                                st.session_state[f"s_fb_{day_selected}"] = fb_s_dict
-                                save_data_to_file()
-                            except Exception as e:
-                                st.error(f"Feedback error: {e}")
-
-            s_fb = st.session_state.get(f"s_fb_{day_selected}")
-            if s_fb:
+            if s_data and "speaking_prompt" in s_data:
+                sp = s_data["speaking_prompt"]
                 st.markdown('<div class="apex-card">', unsafe_allow_html=True)
-                st.markdown(f"### 📊 Speaking Feedback (Score: {s_fb.get('overall_score', 'N/A')})")
-                render_feedback_section(s_fb)
+                st.markdown("#### 📈 Strategic Context & Key Metrics")
+                st.write(sp.get("presentation_context", ""))
+                st.markdown("**📊 Key Data Points to Present:**")
+                st.write(sp.get("key_data_points", ""))
+                st.markdown("**🎯 Strategic Questions to Answer:**")
+                st.write(sp.get("questions_to_address", ""))
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            st.markdown("#### 🎙️ Practice Speaking Aloud & Live Audio Recording")
+            record_and_evaluate_speech(
+                f"Regarding {day_topic}, we must align our strategic execution with key data metrics to drive long-term value.", 
+                f"day_{day_selected}_speaking_main"
+            )
+
+            user_speak_key = f"user_s_text_{day_selected}"
+            if user_speak_key not in st.session_state:
+                st.session_state[user_speak_key] = ""
+
+            s_text = st.text_area("Or type your speech response for AI analysis:", value=st.session_state[user_speak_key], height=180, key=user_speak_key)
+
+            if st.button("Evaluate Presentation Response", key=f"btn_eval_s_{day_selected}", use_container_width=True):
+                if len(s_text.strip()) < 20:
+                    st.warning("Please provide a speech response (minimum 20 words) for evaluation.")
+                else:
+                    pseval = f"""Evaluate this executive speech presentation response.
+                    Topic: '{day_topic}'
+                    User Response: "{s_text}"
+                    Return JSON object with keys:
+                    'clarity_impact_score' (out of 100),
+                    'persuasiveness_feedback' (list of points),
+                    'vocabulary_enhancements' (list of points),
+                    'model_c_suite_delivery' (sample text).
+                    ALL text MUST be in ENGLISH."""
+                    
+                    seval_res = generate_ai_response(pseval)
+                    clean_seval = extract_json(seval_res)
+                    if clean_seval:
+                        try:
+                            st.session_state[f"s_eval_res_{day_selected}"] = json.loads(clean_seval, strict=False)
+                            save_data_to_file()
+                        except Exception as e:
+                            st.error(f"Speech Analysis Error: {e}")
+
+            s_eval_data = st.session_state.get(f"s_eval_res_{day_selected}")
+            if s_eval_data:
+                st.markdown("### 📊 Presentation Feedback & AI Score")
+                st.metric("Clarity & Impact Score", f"{s_eval_data.get('clarity_impact_score', 0)}/100")
+                
+                st.markdown('<div class="apex-card">', unsafe_allow_html=True)
+                st.markdown("#### 💡 Structural & Persuasiveness Feedback")
+                render_feedback_section(s_eval_data.get("persuasiveness_feedback", []))
+                st.markdown("#### 🔤 Vocabulary & Phrase Upgrades")
+                render_feedback_section(s_eval_data.get("vocabulary_enhancements", []))
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                st.markdown('<div class="correct-card">', unsafe_allow_html=True)
+                st.markdown("#### 🏆 Model C-Suite Delivery Transcript")
+                model_deliv = s_eval_data.get("model_c_suite_delivery", "")
+                st.write(model_deliv)
+                play_audio(model_deliv)
                 st.markdown('</div>', unsafe_allow_html=True)
 
         # --- 8. TRANSLATION PRACTICE ---
         with tab_t:
             st.markdown(f"### 🌐 Executive Translation Practice: {day_topic}")
-            p_trans = f"Generate 3 executive business sentences on '{day_topic}' for translation into professional English. ALL text MUST be in 100% ENGLISH. Return JSON with key 'sentences' as array of 3 objects: 'id', 'source_context', 'reference_translation'."
-            t_data = get_or_generate_data(f"t_data_{day_selected}", p_trans, seed_key=f"trans_day_{day_selected}") or {}
+            ptrans = f"""Generate 4 challenging executive sentences on '{day_topic}' for English translation practice.
+            Return JSON object with key 'translations' as array of 4 objects:
+            'id', 'source_sentence_en', 'suggested_c_suite_translation', 'key_vocabulary_notes'."""
             
-            t_list = t_data.get("sentences", [])
-            if t_list:
-                for idx, t_item in enumerate(t_list, 1):
-                    st.markdown(f"**Sentence {idx}: Context / Core Meaning:**")
-                    st.info(t_item.get('source_context', ''))
+            t_data = get_or_generate_data(f"t_prompt_{day_selected}", ptrans, seed_key=f"trans_d{day_selected}")
+            
+            if t_data and "translations" in t_data:
+                t_list = t_data["translations"]
+                for idx, item in enumerate(t_list, 1):
+                    st.markdown(f'<div class="apex-card">', unsafe_allow_html=True)
+                    st.markdown(f"**Sentence {idx}:** {item.get('source_sentence_en')}")
+                    play_audio(item.get('source_sentence_en'))
                     
-                    key_t_in = f"t_in_{day_selected}_{idx}"
+                    key_t_in = f"t_user_in_{day_selected}_{idx}"
                     if key_t_in not in st.session_state:
                         st.session_state[key_t_in] = ""
-                        
-                    st.text_input("Your English Translation:", value=st.session_state[key_t_in], key=key_t_in)
-                    st.write("---")
-                
-                if st.button("Evaluate Translations", key=f"btn_t_check_{day_selected}", use_container_width=True):
-                    u_t_ans = {}
-                    for idx in range(1, len(t_list) + 1):
-                        key_t_in = f"t_in_{day_selected}_{idx}"
-                        u_t_ans[idx] = st.session_state.get(key_t_in, "")
                     
+                    st.text_input("Type your paraphrased/translated executive English version:", value=st.session_state[key_t_in], key=key_t_in)
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                if st.button("Submit & Reveal Benchmark Translations", key=f"btn_t_sub_{day_selected}", use_container_width=True):
                     st.session_state[f"t_sub_{day_selected}"] = True
-                    st.session_state[f"t_ans_{day_selected}"] = u_t_ans
                     save_data_to_file()
 
                 if st.session_state.get(f"t_sub_{day_selected}", False):
-                    ans_t_map = st.session_state.get(f"t_ans_{day_selected}", {})
-                    st.markdown("#### 📊 Translation Review & Reference Benchmarks")
-                    for idx, t_item in enumerate(t_list, 1):
-                        u_val_t = ans_t_map.get(idx, "")
-                        ref_t = t_item.get('reference_translation', '')
-                        
-                        st.markdown(f"""
-                        <div class="apex-card">
-                            <b>Sentence {idx}:</b><br>
-                            • Your Version: <i>"{u_val_t if u_val_t else 'No response'}"</i><br>
-                            • C-Suite Reference: <b style="color:#16a34a !important;">"{ref_t}"</b>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    st.markdown("### 📊 Benchmark C-Suite Reference Translations")
+                    for idx, item in enumerate(t_list, 1):
+                        user_ans = st.session_state.get(f"t_user_in_{day_selected}_{idx}", "")
+                        st.markdown(f'<div class="correct-card">', unsafe_allow_html=True)
+                        st.markdown(f"**Sentence {idx} Reference Solution:**")
+                        st.markdown(f"• **Your Version:** {user_ans if user_ans else 'Not provided'}")
+                        st.markdown(f"• **Suggested C-Suite Version:** {item.get('suggested_c_suite_translation')}")
+                        st.markdown(f"• **Key Vocabulary Notes:** {item.get('key_vocabulary_notes')}")
+                        st.markdown('</div>', unsafe_allow_html=True)
 
     elif app_mode == "3. Error Log & Remind Review":
         st.markdown("""
         <div class="hero-banner">
             <h2 style='margin:0;'>Error Log & Remind Review</h2>
-            <p style='margin:5px 0 0 0;'>Review all missed questions and reinforce key business concepts.</p>
+            <p style='margin:5px 0 0 0;'>Review all missed questions from Diagnostic & Curriculum Quizzes.</p>
         </div>
         """, unsafe_allow_html=True)
-        
-        err_log = st.session_state.get("error_log", [])
-        if not err_log:
-            st.success("🎉 No recorded errors! Great performance so far.")
+
+        err_list = st.session_state.get("error_log", [])
+        if not err_list:
+            st.success("🎉 Outstanding job! Your error log is empty. No missed questions recorded.")
         else:
-            if st.button("🗑️ Clear Error Log", use_container_width=True):
+            st.write(f"Total Missed Items Recorded: **{len(err_list)}**")
+            if st.button("🗑️ Clear Error Log History", use_container_width=True):
                 st.session_state["error_log"] = []
                 save_data_to_file()
                 st.rerun()
-                
-            for idx, item in enumerate(err_log, 1):
-                st.markdown(f"""
-                <div class="wrong-card">
-                    <h4>{idx}. [{item.get('skill', 'General')}] {item.get('question')}</h4>
-                    <p>❌ Your Selected Answer: <b>{item.get('your_answer')}</b></p>
-                    <p>✅ Correct Answer: <b>{item.get('correct_answer')}</b></p>
-                    <p>💡 <i>Explanation: {item.get('explanation')}</i></p>
-                </div>
-                """, unsafe_allow_html=True)
+
+            st.write("---")
+            for idx, err in enumerate(err_list, 1):
+                st.markdown(f'<div class="wrong-card">', unsafe_allow_html=True)
+                st.markdown(f"#### Error #{idx} [{err.get('skill', 'General')}]")
+                st.markdown(f"**Question:** {err.get('question')}")
+                st.markdown(f"• **Your Answer:** <span style='color:#e11d48;'><b>{err.get('your_answer')}</b></span>", unsafe_allow_html=True)
+                st.markdown(f"• **Correct Answer:** <span style='color:#16a34a;'><b>{err.get('correct_answer')}</b></span>", unsafe_allow_html=True)
+                st.markdown(f"• **Explanation:** <i>{err.get('explanation')}</i>")
+                st.markdown('</div>', unsafe_allow_html=True)
