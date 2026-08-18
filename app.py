@@ -7,7 +7,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. CONFIG & STYLING (YÊU CẦU 1, 3, 4)
+# 1. CONFIG & STYLING (SỬA LỖI UI SIDEBAR & INPUTS)
 # ==========================================
 st.set_page_config(
     page_title="IELTS & Business English Studio B2->C1",
@@ -26,7 +26,7 @@ st.markdown(
         background-color: #FFF5F5 !important; 
     }
     
-    /* Sidebar light theme styling (Yêu cầu 1) */
+    /* Sidebar light theme styling */
     [data-testid="stSidebar"] {
         background-color: #FFFFFF !important;
         border-right: 1px solid #E2E8F0 !important;
@@ -34,6 +34,25 @@ st.markdown(
 
     [data-testid="stSidebar"] *, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, 
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] label {
+        color: #1A202C !important;
+    }
+
+    /* Force Selectbox & Inputs to White Background & Dark Text (Fix Lỗi 1 & Lỗi 2) */
+    div[data-baseweb="select"] > div, 
+    div[data-baseweb="input"] > div, 
+    .stTextInput input, 
+    .stSelectbox div[role="combobox"] {
+        background-color: #FFFFFF !important;
+        color: #1A202C !important;
+        border: 1px solid #CBD5E0 !important;
+        border-radius: 8px !important;
+    }
+
+    /* Dropdown Options List Styling */
+    div[data-baseweb="popover"] ul, div[data-baseweb="menu"] {
+        background-color: #FFFFFF !important;
+    }
+    div[data-baseweb="option"] * {
         color: #1A202C !important;
     }
 
@@ -60,35 +79,12 @@ st.markdown(
         color: #1A202C !important;
     }
 
-    /* Synonym tag fix (Yêu cầu 4) */
     code {
         background-color: #EDF2F7 !important;
         color: #2D3748 !important;
         padding: 2px 6px !important;
         border-radius: 4px !important;
         font-weight: 600 !important;
-    }
-
-    /* Form Inputs */
-    .stTextInput input, .stTextArea textarea, div[data-baseweb="select"] {
-        background-color: #FFFFFF !important;
-        color: #1A202C !important;
-        border: 1px solid #CBD5E0 !important;
-        border-radius: 8px !important;
-    }
-    
-    div[class*="stRadio"] label p {
-        color: #1A202C !important;
-        font-weight: 500 !important;
-    }
-
-    /* Tabs */
-    button[data-baseweb="tab"] p {
-        color: #2D3748 !important;
-        font-weight: 600 !important;
-    }
-    button[aria-selected="true"] p {
-        color: #E53E3E !important;
     }
 
     /* Badges */
@@ -168,7 +164,7 @@ def render_tts_button(text, button_id):
     components.html(js_code, height=45)
 
 # ==========================================
-# 3. SAVE PROGRESS & API SERVICES (YÊU CẦU 2, 9, 11)
+# 3. SAVE PROGRESS & API SERVICES (FIX LỖI 4: LƯU DATA BÀI LÀM)
 # ==========================================
 DATA_FILE = "user_progress.json"
 
@@ -186,7 +182,6 @@ def save_data_to_file():
         "completed_days": list(st.session_state.get("completed_days", set())),
         "api_key": st.session_state.get("groq_api_key", ""),
         "user_answers": st.session_state.get("user_answers", {}),
-        "audio_recordings": st.session_state.get("audio_recordings", {})
     }
     try:
         with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -196,6 +191,7 @@ def save_data_to_file():
         st.error(f"Save error: {e}")
 
 saved_data = load_saved_data()
+
 if "completed_days" not in st.session_state:
     st.session_state.completed_days = set(saved_data.get("completed_days", []))
 if "groq_api_key" not in st.session_state:
@@ -203,7 +199,7 @@ if "groq_api_key" not in st.session_state:
 if "user_answers" not in st.session_state:
     st.session_state.user_answers = saved_data.get("user_answers", {})
 if "audio_recordings" not in st.session_state:
-    st.session_state.audio_recordings = saved_data.get("audio_recordings", {})
+    st.session_state.audio_recordings = {}
 
 def call_groq_llm(prompt, api_key):
     if not api_key:
@@ -262,8 +258,15 @@ def transcribe_audio_groq(audio_bytes, api_key):
             os.remove(tmp_path)
     return None
 
+# Helper function để lưu đáp án người dùng vào session_state
+def get_user_ans(key, default=""):
+    return st.session_state.user_answers.get(key, default)
+
+def set_user_ans(key, val):
+    st.session_state.user_answers[key] = val
+
 # ==========================================
-# 4. SPEECH EVALUATION & AUDIO PLAYER (YÊU CẦU 5, 11)
+# 4. SPEECH EVALUATION & AUDIO PLAYER
 # ==========================================
 def record_and_evaluate_speech(reference_text, label, context_info=""):
     st.markdown(f"**Target Text/Context:** *\"{reference_text}\"*")
@@ -272,11 +275,9 @@ def record_and_evaluate_speech(reference_text, label, context_info=""):
     rec_key = f"rec_{hash(label)}"
     audio_val = st.audio_input("Click mic to record your voice:", key=rec_key)
     
-    # Save audio recording in session state
     if audio_val:
         st.session_state.audio_recordings[label] = audio_val.read()
     
-    # Playback saved audio
     if label in st.session_state.audio_recordings:
         st.markdown("**Your Saved Recording:**")
         st.audio(st.session_state.audio_recordings[label], format="audio/wav")
@@ -305,7 +306,7 @@ def record_and_evaluate_speech(reference_text, label, context_info=""):
                         st.markdown(f"<div class='studio-card'>{feedback}</div>", unsafe_allow_html=True)
 
 # ==========================================
-# 5. CURRICULUM DATA B2 -> C1 (YÊU CẦU 3, 5, 6, 7, 8, 9, 10, 11)
+# 5. CURRICULUM DATA
 # ==========================================
 def get_curriculum_day(day_num):
     topics = [
@@ -316,26 +317,24 @@ def get_curriculum_day(day_num):
     topic = topics[(day_num - 1) % len(topics)]
     
     vocab = [
-        {"word": "Consolidate", "pos": "verb", "en": "To combine into a single, stronger unit.", "vn": "To combine into a single, stronger unit.", "syn": "Merge, Strengthen", "example": "The company plans to consolidate its position in the European market."},
-        {"word": "Feasibility", "pos": "noun", "en": "The degree to which something is possible.", "vn": "The degree to which something is possible.", "syn": "Viability, Practicability", "example": "We conducted a feasibility study before launching the project."},
-        {"word": "Disruption", "pos": "noun", "en": "Disturbance that alters a system.", "vn": "Disturbance that alters a system.", "syn": "Upheaval, Disturbance", "example": "AI technology is causing massive disruption in traditional industries."},
-        {"word": "Benchmark", "pos": "noun", "en": "A standard against which things may be measured.", "vn": "A standard against which things may be measured.", "syn": "Criterion, Yardstick", "example": "Our Q3 performance set a new benchmark for the sector."},
-        {"word": "Mitigate", "pos": "verb", "en": "Make less severe, serious, or painful.", "vn": "Make less severe, serious, or painful.", "syn": "Alleviate, Reduce", "example": "Steps were taken to mitigate the financial impact of the crisis."},
-        {"word": "Leverage", "pos": "verb", "en": "Use something to maximum advantage.", "vn": "Use something to maximum advantage.", "syn": "Exploit, Utilize", "example": "We must leverage our brand equity to launch new products."},
-        {"word": "Scalability", "pos": "noun", "en": "Ability of a system to handle growing work.", "vn": "Ability of a system to handle growing work.", "syn": "Expandability", "example": "Cloud architecture offers incredible business scalability."},
-        {"word": "Pivot", "pos": "verb", "en": "Change strategic direction abruptly.", "vn": "Change strategic direction abruptly.", "syn": "Shift, Reorient", "example": "The startup pivoted from B2C to an enterprise B2B model."},
-        {"word": "Stagnation", "pos": "noun", "en": "State of not flowing, moving, or changing.", "vn": "State of not flowing, moving, or changing.", "syn": "Inaction, Standstill", "example": "Economic stagnation led to reduced corporate investment."},
-        {"word": "Unprecedented", "pos": "adj", "en": "Never done or known before.", "vn": "Never done or known before.", "syn": "Unparalleled, Novel", "example": "The sector experienced unprecedented growth during the quarter."}
+        {"word": "Consolidate", "pos": "verb", "en": "To combine into a single, stronger unit.", "syn": "Merge, Strengthen", "example": "The company plans to consolidate its position in the European market."},
+        {"word": "Feasibility", "pos": "noun", "en": "The degree to which something is possible.", "syn": "Viability, Practicability", "example": "We conducted a feasibility study before launching the project."},
+        {"word": "Disruption", "pos": "noun", "en": "Disturbance that alters a system.", "syn": "Upheaval, Disturbance", "example": "AI technology is causing massive disruption in traditional industries."},
+        {"word": "Benchmark", "pos": "noun", "en": "A standard against which things may be measured.", "syn": "Criterion, Yardstick", "example": "Our Q3 performance set a new benchmark for the sector."},
+        {"word": "Mitigate", "pos": "verb", "en": "Make less severe, serious, or painful.", "syn": "Alleviate, Reduce", "example": "Steps were taken to mitigate the financial impact of the crisis."},
+        {"word": "Leverage", "pos": "verb", "en": "Use something to maximum advantage.", "syn": "Exploit, Utilize", "example": "We must leverage our brand equity to launch new products."},
+        {"word": "Scalability", "pos": "noun", "en": "Ability of a system to handle growing work.", "syn": "Expandability", "example": "Cloud architecture offers incredible business scalability."},
+        {"word": "Pivot", "pos": "verb", "en": "Change strategic direction abruptly.", "syn": "Shift, Reorient", "example": "The startup pivoted from B2C to an enterprise B2B model."},
+        {"word": "Stagnation", "pos": "noun", "en": "State of not flowing, moving, or changing.", "syn": "Inaction, Standstill", "example": "Economic stagnation led to reduced corporate investment."},
+        {"word": "Unprecedented", "pos": "adj", "en": "Never done or known before.", "syn": "Unparalleled, Novel", "example": "The sector experienced unprecedented growth during the quarter."}
     ]
 
-    # Pronunciation texts >= 3 sentences (Yêu cầu 5iii)
     pronunciation = [
         "Our strategic initiatives have significantly consolidated our market position over the past fiscal year. Executive board members have agreed to increase capital expenditure to expand our infrastructure. Moving forward, this framework will guarantee operational excellence across all major regions.",
         "To mitigate operational risks, executive leadership approved an unprecedented risk governance framework yesterday. This multi-layered initiative addresses cyber security vulnerabilities, compliance hurdles, and potential supply chain bottlenecks. By doing so, we ensure long-term stability and sustained market leadership.",
         "Leveraging digital scalability remains the primary benchmark for enterprise growth in this quarter. Companies that fail to adapt their infrastructure will face severe market stagnation and revenue decline. Therefore, accelerating our cloud integration strategy is essential for immediate competitive advantage."
     ]
 
-    # Grammar with newlines (Yêu cầu 6i) and 10 questions total (Yêu cầu 6ii)
     grammar_theory = """
     **Advanced Business Conditionals: Inversion Structure (C1 Level)**
     <br><br>
@@ -367,7 +366,6 @@ def get_curriculum_day(day_num):
         {"q": "Should any partner _____ (violate) the terms, the contract will be terminated.", "a": "violate"}
     ]
 
-    # Reading passage >= 20 sentences (Yêu cầu 7i) & 7 questions total (Yêu cầu 7ii)
     reading_text = """
 1. In an era marked by unprecedented global market volatility, modern corporations face severe operational threats.
 2. Navigating this complex landscape requires executive leadership to move far beyond mere baseline compliance.
@@ -402,7 +400,6 @@ def get_curriculum_day(day_num):
         {"q": "A well-executed strategic _____ (sentence 18) can reinvigorate growth.", "a": "pivot"}
     ]
 
-    # Listening briefing >= 3 minutes (~450 words) (Yêu cầu 8i) & 7 questions total (Yêu cầu 8ii)
     listening_script = """
 Good morning, ladies and gentlemen of the board, and welcome to our annual strategic roadmap presentation. Today, I will be addressing our operational performance under topic Executive Corporate Strategy, evaluating current market challenges, and presenting our multi-phase expansion framework.
 
@@ -430,7 +427,6 @@ In conclusion, our strategic fundamentals remain rock-solid. By combining discip
         {"q": "Executive leadership established clear performance _____ for subsidiaries.", "a": "benchmarks"}
     ]
 
-    # Writing & Speaking detailed context prompts (Yêu cầu 9i, 11i)
     writing_prompt = f"""
 **Context & Current Situation:**
 You are the Chief Strategy Officer (CSO) at a mid-sized fintech corporation struggling with rising operational costs (up 22% YoY) and increased market competition. The CEO has requested an immediate executive memo proposing a strategic pivot.
@@ -502,13 +498,14 @@ def main():
     st.sidebar.title("⚡ AI English Studio")
     st.sidebar.caption("Roadmap B2 → C1 Mastery (30 Days)")
 
+    # Groq API Input Fix
     api_key_in = st.sidebar.text_input("🔑 Groq API Key:", value=st.session_state.groq_api_key, type="password")
     if api_key_in != st.session_state.groq_api_key:
         st.session_state.groq_api_key = api_key_in.strip()
 
     st.sidebar.divider()
     
-    # Save Progress Button (Yêu cầu 2)
+    # Save Progress Button
     if st.sidebar.button("💾 SAVE PROGRESS"):
         save_data_to_file()
 
@@ -531,7 +528,7 @@ def main():
 
     day_data = get_curriculum_day(selected_day)
 
-    # Main Header Studio
+    # Main Header
     st.markdown(
         f"""
         <div class="studio-card">
@@ -559,7 +556,7 @@ def main():
     ])
 
     # ------------------------------------------
-    # TAB 1: VOCABULARY & GAMES (YÊU CẦU 3, 4)
+    # TAB 1: VOCABULARY & GAMES (SỬA LỖI 3 & 4)
     # ------------------------------------------
     with t1:
         st.subheader("📚 10 C1 Vocabulary Words of the Day")
@@ -585,36 +582,69 @@ def main():
         st.divider()
         st.subheader("🎮 Vocabulary Games Practice")
 
+        # GAME 1
         st.markdown("### 🕹️ Game 1: C1 Word Definition Quiz (5 Questions)")
-        score_g1 = 0
         for i in range(5):
             w = day_data["vocab"][i]
             st.markdown(f"**Question {i+1}:** What is the correct definition of **\"{w['word']}\"**?")
             opts = [w['en'], day_data["vocab"][(i+1)%10]['en'], day_data["vocab"][(i+2)%10]['en'], day_data["vocab"][(i+3)%10]['en']]
             random.seed(i + selected_day)
             random.shuffle(opts)
-            ans = st.radio(f"Select option Q{i+1}:", opts, key=f"g1_q_{selected_day}_{i}")
-            if ans == w['en']:
-                score_g1 += 1
-        if st.button("Check Game 1 Score"):
-            st.success(f"🎉 Game 1 Score: {score_g1}/5")
+            
+            key_g1 = f"g1_q_{selected_day}_{i}"
+            curr_val = get_user_ans(key_g1, opts[0])
+            ans = st.radio(
+                f"Select option Q{i+1}:", 
+                opts, 
+                index=opts.index(curr_val) if curr_val in opts else 0,
+                key=key_g1
+            )
+            set_user_ans(key_g1, ans)
+
+        if st.button("Check Game 1 Answers", key="btn_check_g1"):
+            st.markdown("#### 📋 Detailed Results - Game 1:")
+            score_g1 = 0
+            for i in range(5):
+                w = day_data["vocab"][i]
+                u_a = get_user_ans(f"g1_q_{selected_day}_{i}")
+                is_correct = (u_a == w['en'])
+                if is_correct:
+                    score_g1 += 1
+                    st.success(f"**Question {i+1} ({w['word']}):** ✅ Correct!\n- Your Answer: {u_a}")
+                else:
+                    st.error(f"**Question {i+1} ({w['word']}):** ❌ Incorrect!\n- Your Answer: {u_a}\n- **Correct Answer:** {w['en']}")
+            st.info(f"🏆 Total Score Game 1: {score_g1}/5")
 
         st.divider()
 
+        # GAME 2
         st.markdown("### 🧩 Game 2: Context Sentence Fill-in-the-blank (5 Questions)")
-        score_g2 = 0
         for i in range(5, 10):
             w = day_data["vocab"][i]
             sentence = w["example"].replace(w["word"], "________").replace(w["word"].lower(), "________")
             st.markdown(f"**Question {i-4}:** Fill in the blank: *\"{sentence}\"*")
-            u_ans = st.text_input(f"Enter word Q{i-4}:", key=f"g2_q_{selected_day}_{i}")
-            if u_ans.strip().lower() == w["word"].lower():
-                score_g2 += 1
-        if st.button("Check Game 2 Score"):
-            st.success(f"🎉 Game 2 Score: {score_g2}/5")
+            
+            key_g2 = f"g2_q_{selected_day}_{i}"
+            curr_val = get_user_ans(key_g2, "")
+            u_ans = st.text_input(f"Enter word Q{i-4}:", value=curr_val, key=key_g2)
+            set_user_ans(key_g2, u_ans)
+
+        if st.button("Check Game 2 Answers", key="btn_check_g2"):
+            st.markdown("#### 📋 Detailed Results - Game 2:")
+            score_g2 = 0
+            for i in range(5, 10):
+                w = day_data["vocab"][i]
+                u_a = get_user_ans(f"g2_q_{selected_day}_{i}")
+                is_correct = (u_a.strip().lower() == w["word"].lower())
+                if is_correct:
+                    score_g2 += 1
+                    st.success(f"**Question {i-4}:** ✅ Correct!\n- Your Answer: {u_a}")
+                else:
+                    st.error(f"**Question {i-4}:** ❌ Incorrect!\n- Your Answer: {u_a if u_a else '(Blank)'}\n- **Correct Answer:** {w['word']}")
+            st.info(f"🏆 Total Score Game 2: {score_g2}/5")
 
     # ------------------------------------------
-    # TAB 2: PRONUNCIATION (YÊU CẦU 5)
+    # TAB 2: PRONUNCIATION
     # ------------------------------------------
     with t2:
         st.subheader("🗣️ C1 Pronunciation & Intonation Drills")
@@ -624,7 +654,7 @@ def main():
             record_and_evaluate_speech(p, label=f"pron_tab_{selected_day}_{idx}")
 
     # ------------------------------------------
-    # TAB 3: GRAMMAR RULES (YÊU CẦU 6)
+    # TAB 3: GRAMMAR RULES (SỬA LỖI 3 & 4)
     # ------------------------------------------
     with t3:
         st.subheader(f"📐 {day_data['grammar']['title']}")
@@ -634,19 +664,46 @@ def main():
         st.markdown("#### Part 1: Multiple Choice Questions (5 Questions)")
         for idx, q in enumerate(day_data["grammar"]["mcq"]):
             st.write(f"**Q{idx+1}:** {q['q']}")
-            u_ans = st.radio(f"Select option Q{idx+1}:", q['options'], key=f"g_mcq_{selected_day}_{idx}")
-            if u_ans == q['a']:
-                st.caption("✅ Correct!")
+            key_g_mcq = f"g_mcq_{selected_day}_{idx}"
+            curr_val = get_user_ans(key_g_mcq, q['options'][0])
+            u_ans = st.radio(
+                f"Select option Q{idx+1}:", 
+                q['options'], 
+                index=q['options'].index(curr_val) if curr_val in q['options'] else 0,
+                key=key_g_mcq
+            )
+            set_user_ans(key_g_mcq, u_ans)
 
         st.markdown("#### Part 2: Fill-in-the-blank Questions (5 Questions)")
         for idx, q in enumerate(day_data["grammar"]["fitb"]):
             st.write(f"**Q{idx+6}:** {q['q']}")
-            u_ans = st.text_input(f"Enter answer Q{idx+6}:", key=f"g_fitb_{selected_day}_{idx}")
-            if u_ans.strip().lower() == q['a'].lower():
-                st.caption("✅ Correct!")
+            key_g_fitb = f"g_fitb_{selected_day}_{idx}"
+            curr_val = get_user_ans(key_g_fitb, "")
+            u_ans = st.text_input(f"Enter answer Q{idx+6}:", value=curr_val, key=key_g_fitb)
+            set_user_ans(key_g_fitb, u_ans)
+
+        if st.button("Check Grammar Answers", key="btn_check_grammar"):
+            st.markdown("#### 📋 Detailed Grammar Evaluation:")
+            g_score = 0
+            for idx, q in enumerate(day_data["grammar"]["mcq"]):
+                u_a = get_user_ans(f"g_mcq_{selected_day}_{idx}")
+                if u_a == q['a']:
+                    g_score += 1
+                    st.success(f"**Q{idx+1}:** ✅ Correct! ({u_a})")
+                else:
+                    st.error(f"**Q{idx+1}:** ❌ Incorrect! Your Answer: {u_a} | **Correct Answer:** {q['a']}")
+
+            for idx, q in enumerate(day_data["grammar"]["fitb"]):
+                u_a = get_user_ans(f"g_fitb_{selected_day}_{idx}")
+                if u_a.strip().lower() == q['a'].lower():
+                    g_score += 1
+                    st.success(f"**Q{idx+6}:** ✅ Correct! ({u_a})")
+                else:
+                    st.error(f"**Q{idx+6}:** ❌ Incorrect! Your Answer: {u_a if u_a else '(Blank)'} | **Correct Answer:** {q['a']}")
+            st.info(f"🏆 Grammar Total Score: {g_score}/10")
 
     # ------------------------------------------
-    # TAB 4: READING (YÊU CẦU 7)
+    # TAB 4: READING (SỬA LỖI 3 & 4)
     # ------------------------------------------
     with t4:
         st.subheader(f"📖 {day_data['reading']['title']}")
@@ -656,15 +713,46 @@ def main():
         st.markdown("#### Part 1: Multiple Choice Questions")
         for idx, q in enumerate(day_data["reading"]["mcq"]):
             st.write(f"**Q{idx+1}:** {q['q']}")
-            st.radio(f"Select option R{idx+1}:", q['options'], key=f"r_mcq_{selected_day}_{idx}")
+            key_r_mcq = f"r_mcq_{selected_day}_{idx}"
+            curr_val = get_user_ans(key_r_mcq, q['options'][0])
+            u_ans = st.radio(
+                f"Select option R{idx+1}:", 
+                q['options'], 
+                index=q['options'].index(curr_val) if curr_val in q['options'] else 0,
+                key=key_r_mcq
+            )
+            set_user_ans(key_r_mcq, u_ans)
 
         st.markdown("#### Part 2: Fill-in-the-blank Questions")
         for idx, q in enumerate(day_data["reading"]["fitb"]):
             st.write(f"**Q{idx+5}:** {q['q']}")
-            st.text_input(f"Enter word R{idx+5}:", key=f"r_fitb_{selected_day}_{idx}")
+            key_r_fitb = f"r_fitb_{selected_day}_{idx}"
+            curr_val = get_user_ans(key_r_fitb, "")
+            u_ans = st.text_input(f"Enter word R{idx+5}:", value=curr_val, key=key_r_fitb)
+            set_user_ans(key_r_fitb, u_ans)
+
+        if st.button("Check Reading Answers", key="btn_check_reading"):
+            st.markdown("#### 📋 Detailed Reading Evaluation:")
+            r_score = 0
+            for idx, q in enumerate(day_data["reading"]["mcq"]):
+                u_a = get_user_ans(f"r_mcq_{selected_day}_{idx}")
+                if u_a == q['a']:
+                    r_score += 1
+                    st.success(f"**Q{idx+1}:** ✅ Correct! ({u_a})")
+                else:
+                    st.error(f"**Q{idx+1}:** ❌ Incorrect! Your Answer: {u_a} | **Correct Answer:** {q['a']}")
+
+            for idx, q in enumerate(day_data["reading"]["fitb"]):
+                u_a = get_user_ans(f"r_fitb_{selected_day}_{idx}")
+                if u_a.strip().lower() == q['a'].lower():
+                    r_score += 1
+                    st.success(f"**Q{idx+5}:** ✅ Correct! ({u_a})")
+                else:
+                    st.error(f"**Q{idx+5}:** ❌ Incorrect! Your Answer: {u_a if u_a else '(Blank)'} | **Correct Answer:** {q['a']}")
+            st.info(f"🏆 Reading Total Score: {r_score}/7")
 
     # ------------------------------------------
-    # TAB 5: LISTENING (YÊU CẦU 8)
+    # TAB 5: LISTENING (SỬA LỖI 3 & 4)
     # ------------------------------------------
     with t5:
         st.subheader("🎧 Business Audio Briefing Script (~3 Minutes Read)")
@@ -675,21 +763,56 @@ def main():
         st.markdown("#### Part 1: Multiple Choice Questions")
         for idx, q in enumerate(day_data["listening"]["mcq"]):
             st.write(f"**Q{idx+1}:** {q['q']}")
-            st.radio(f"Select option L{idx+1}:", q['options'], key=f"l_mcq_{selected_day}_{idx}")
+            key_l_mcq = f"l_mcq_{selected_day}_{idx}"
+            curr_val = get_user_ans(key_l_mcq, q['options'][0])
+            u_ans = st.radio(
+                f"Select option L{idx+1}:", 
+                q['options'], 
+                index=q['options'].index(curr_val) if curr_val in q['options'] else 0,
+                key=key_l_mcq
+            )
+            set_user_ans(key_l_mcq, u_ans)
 
         st.markdown("#### Part 2: Fill-in-the-blank Questions")
         for idx, q in enumerate(day_data["listening"]["fitb"]):
             st.write(f"**Q{idx+5}:** {q['q']}")
-            st.text_input(f"Enter answer L{idx+5}:", key=f"l_fitb_{selected_day}_{idx}")
+            key_l_fitb = f"l_fitb_{selected_day}_{idx}"
+            curr_val = get_user_ans(key_l_fitb, "")
+            u_ans = st.text_input(f"Enter answer L{idx+5}:", value=curr_val, key=key_l_fitb)
+            set_user_ans(key_l_fitb, u_ans)
+
+        if st.button("Check Listening Answers", key="btn_check_listening"):
+            st.markdown("#### 📋 Detailed Listening Evaluation:")
+            l_score = 0
+            for idx, q in enumerate(day_data["listening"]["mcq"]):
+                u_a = get_user_ans(f"l_mcq_{selected_day}_{idx}")
+                if u_a == q['a']:
+                    l_score += 1
+                    st.success(f"**Q{idx+1}:** ✅ Correct! ({u_a})")
+                else:
+                    st.error(f"**Q{idx+1}:** ❌ Incorrect! Your Answer: {u_a} | **Correct Answer:** {q['a']}")
+
+            for idx, q in enumerate(day_data["listening"]["fitb"]):
+                u_a = get_user_ans(f"l_fitb_{selected_day}_{idx}")
+                if u_a.strip().lower() == q['a'].lower():
+                    l_score += 1
+                    st.success(f"**Q{idx+5}:** ✅ Correct! ({u_a})")
+                else:
+                    st.error(f"**Q{idx+5}:** ❌ Incorrect! Your Answer: {u_a if u_a else '(Blank)'} | **Correct Answer:** {q['a']}")
+            st.info(f"🏆 Listening Total Score: {l_score}/7")
 
     # ------------------------------------------
-    # TAB 6: WRITING (YÊU CẦU 9)
+    # TAB 6: WRITING
     # ------------------------------------------
     with t6:
         st.subheader("✍️ C1 Executive Writing Scenario")
         st.markdown(f"<div class='studio-card'>{day_data['writing']}</div>", unsafe_allow_html=True)
         
-        user_writer = st.text_area("Write your response in English:", height=220)
+        key_w = f"w_essay_{selected_day}"
+        curr_val = get_user_ans(key_w, "")
+        user_writer = st.text_area("Write your response in English:", value=curr_val, height=220, key=key_w)
+        set_user_ans(key_w, user_writer)
+
         if st.button("🚀 AI Evaluation & C1 Upgrade Feedback"):
             if not user_writer.strip():
                 st.warning("Please enter your essay before submitting!")
@@ -710,7 +833,7 @@ def main():
                         st.markdown(f"<div class='studio-card'>{res}</div>", unsafe_allow_html=True)
 
     # ------------------------------------------
-    # TAB 7: SPEAKING (YÊU CẦU 11)
+    # TAB 7: SPEAKING
     # ------------------------------------------
     with t7:
         st.subheader("📊 Executive Speaking Pitch")
@@ -718,7 +841,7 @@ def main():
         record_and_evaluate_speech(day_data['speaking'], label=f"speak_pitch_{selected_day}", context_info=day_data['speaking'])
 
     # ------------------------------------------
-    # TAB 8: TRANSLATION (YÊU CẦU 10)
+    # TAB 8: TRANSLATION (SỬA LỖI 3 & 4)
     # ------------------------------------------
     with t8:
         st.subheader("🌐 C1 Sentence-by-Sentence Translation Practice")
@@ -726,7 +849,11 @@ def main():
         
         for idx, t_item in enumerate(day_data["translation"]):
             st.markdown(f"<div class='studio-card'><b>Sentence {t_item['id']}:</b> {t_item['vn']}</div>", unsafe_allow_html=True)
-            u_trans = st.text_input(f"Your Translation for Sentence {t_item['id']}:", key=f"single_trans_{selected_day}_{idx}")
+            
+            key_trans = f"single_trans_{selected_day}_{idx}"
+            curr_val = get_user_ans(key_trans, "")
+            u_trans = st.text_input(f"Your Translation for Sentence {t_item['id']}:", value=curr_val, key=key_trans)
+            set_user_ans(key_trans, u_trans)
             
             if st.button(f"🎯 Evaluate Sentence {t_item['id']}", key=f"btn_trans_{selected_day}_{idx}"):
                 if not u_trans.strip():
@@ -739,10 +866,11 @@ def main():
                         - Ideal Reference EN: "{t_item['en']}"
                         - Student Translation: "{u_trans}"
 
-                        Provide brief feedback strictly in English:
+                        Provide detailed feedback strictly in English:
                         1. Score (/10)
                         2. Accuracy & C1 Vocabulary usage
-                        3. Polished C1 Alternative
+                        3. Exact mistakes in student's response vs correct reference
+                        4. Polished C1 Alternative
                         """
                         res_single = call_groq_llm(prompt_single, st.session_state.groq_api_key)
                         if res_single:
