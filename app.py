@@ -7,7 +7,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. CẤU HÌNH GIAO DIỆN STYLE GOOGLE AI STUDIO (FORCED BLACK TEXT)
+# 1. CONFIG & STYLING (YÊU CẦU 1, 3, 4)
 # ==========================================
 st.set_page_config(
     page_title="IELTS & Business English Studio B2->C1",
@@ -16,18 +16,28 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Injection CSS: Ép toàn bộ ứng dụng sang chữ màu đen đậm #1A202C tuyệt đối
 st.markdown(
     """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
-    /* Ép nền ứng dụng hồng nhạt */
+    /* Background light pink */
     .stApp, [data-testid="stAppViewContainer"] { 
         background-color: #FFF5F5 !important; 
     }
     
-    /* Ép tất cả văn bản trong ứng dụng thành màu ĐEN DẬM #1A202C */
+    /* Sidebar light theme styling (Yêu cầu 1) */
+    [data-testid="stSidebar"] {
+        background-color: #FFFFFF !important;
+        border-right: 1px solid #E2E8F0 !important;
+    }
+
+    [data-testid="stSidebar"] *, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, 
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] label {
+        color: #1A202C !important;
+    }
+
+    /* Force black text across app */
     html, body, p, span, div, h1, h2, h3, h4, h5, h6, li, a, label, strong, b, em, i,
     [class*="css"], .stMarkdown, .stText, .stRadio label, .stCheckbox label,
     [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span {
@@ -35,7 +45,7 @@ st.markdown(
         font-family: 'Inter', sans-serif !important;
     }
 
-    /* Thẻ Container Google Studio Style (Nền Trắng, Chữ Đen) */
+    /* Cards */
     .studio-card {
         background-color: #FFFFFF !important;
         border: 1px solid #E2E8F0 !important;
@@ -50,7 +60,16 @@ st.markdown(
         color: #1A202C !important;
     }
 
-    /* Đổi màu chữ ô Input, Textarea & Selectbox thành Chữ Đen - Nền Trắng */
+    /* Synonym tag fix (Yêu cầu 4) */
+    code {
+        background-color: #EDF2F7 !important;
+        color: #2D3748 !important;
+        padding: 2px 6px !important;
+        border-radius: 4px !important;
+        font-weight: 600 !important;
+    }
+
+    /* Form Inputs */
     .stTextInput input, .stTextArea textarea, div[data-baseweb="select"] {
         background-color: #FFFFFF !important;
         color: #1A202C !important;
@@ -58,13 +77,12 @@ st.markdown(
         border-radius: 8px !important;
     }
     
-    /* Đổi màu Radio Buttons & Labels */
     div[class*="stRadio"] label p {
         color: #1A202C !important;
         font-weight: 500 !important;
     }
 
-    /* Style cho Tabs */
+    /* Tabs */
     button[data-baseweb="tab"] p {
         color: #2D3748 !important;
         font-weight: 600 !important;
@@ -93,7 +111,7 @@ st.markdown(
         font-weight: 700;
     }
 
-    /* Nút bấm đỏ nổi bật */
+    /* Red Primary Buttons */
     .stButton>button {
         background-color: #E53E3E !important; 
         color: #FFFFFF !important;
@@ -117,12 +135,12 @@ st.markdown(
 )
 
 # ==========================================
-# 2. BỘ PHÁT ÂM TTS (WEB SPEECH API)
+# 2. TTS ENGINE (WEB SPEECH API)
 # ==========================================
 def render_tts_button(text, button_id):
-    """Tạo nút loa phát âm trực tiếp bằng JS Web Speech API."""
+    clean_text = text.replace("'", "\\'").replace('"', '\\"').replace("\n", " ")
     js_code = f"""
-    <button onclick="playTTS('{text}')" id="btn_{button_id}" style="
+    <button onclick="playTTS('{clean_text}')" id="btn_{button_id}" style="
         background-color: #ED8936;
         color: white;
         border: none;
@@ -135,7 +153,7 @@ def render_tts_button(text, button_id):
         align-items: center;
         gap: 6px;
     ">
-        🔊 Nghe phát âm
+        🔊 Listen Audio
     </button>
     <script>
     function playTTS(phrase) {{
@@ -149,9 +167,8 @@ def render_tts_button(text, button_id):
     """
     components.html(js_code, height=45)
 
-
 # ==========================================
-# 3. LƯU TIẾN ĐỘ & GROQ API
+# 3. SAVE PROGRESS & API SERVICES (YÊU CẦU 2, 9, 11)
 # ==========================================
 DATA_FILE = "user_progress.json"
 
@@ -168,32 +185,39 @@ def save_data_to_file():
     data_to_save = {
         "completed_days": list(st.session_state.get("completed_days", set())),
         "api_key": st.session_state.get("groq_api_key", ""),
+        "user_answers": st.session_state.get("user_answers", {}),
+        "audio_recordings": st.session_state.get("audio_recordings", {})
     }
     try:
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data_to_save, f, ensure_ascii=False, indent=4)
+        st.toast("Progress saved successfully!", icon="✅")
     except Exception as e:
-        st.error(f"Lỗi lưu trữ: {e}")
+        st.error(f"Save error: {e}")
 
 saved_data = load_saved_data()
 if "completed_days" not in st.session_state:
     st.session_state.completed_days = set(saved_data.get("completed_days", []))
 if "groq_api_key" not in st.session_state:
     st.session_state.groq_api_key = saved_data.get("api_key", "")
+if "user_answers" not in st.session_state:
+    st.session_state.user_answers = saved_data.get("user_answers", {})
+if "audio_recordings" not in st.session_state:
+    st.session_state.audio_recordings = saved_data.get("audio_recordings", {})
 
 def call_groq_llm(prompt, api_key):
     if not api_key:
-        st.error("Vui lòng nhập Groq API Key ở Sidebar!")
+        st.error("Please enter your Groq API Key in the Sidebar!")
         return None
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {api_key.strip()}", "Content-Type": "application/json"}
     active_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
     
     for model in active_models:
         payload = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "You are a C1 Business English & IELTS Senior Examiner. Provide exact, structured evaluations in Vietnamese."},
+                {"role": "system", "content": "You are a C1 Business English & IELTS Senior Examiner. Provide structured evaluations strictly in English."},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.2
@@ -202,17 +226,25 @@ def call_groq_llm(prompt, api_key):
             res = requests.post(url, headers=headers, json=payload, timeout=30)
             if res.status_code == 200:
                 return res.json()["choices"][0]["message"]["content"]
+            elif res.status_code == 401:
+                st.error("Invalid API Key! Please check your Groq API Key.")
+                return None
         except Exception:
             continue
-    st.error("Kết nối Groq API thất bại. Kiểm tra Key hoặc mạng!")
+    st.error("Groq API Connection Failed. Check Key or Network!")
     return None
 
 def transcribe_audio_groq(audio_bytes, api_key):
+    if not api_key:
+        st.error("Please enter your Groq API Key in the Sidebar!")
+        return None
     url = "https://api.groq.com/openai/v1/audio/transcriptions"
-    headers = {"Authorization": f"Bearer {api_key}"}
+    headers = {"Authorization": f"Bearer {api_key.strip()}"}
+    
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
         tmp.write(audio_bytes)
         tmp_path = tmp.name
+        
     try:
         with open(tmp_path, "rb") as f:
             files = {
@@ -223,45 +255,57 @@ def transcribe_audio_groq(audio_bytes, api_key):
             res = requests.post(url, headers=headers, files=files, timeout=40)
         if res.status_code == 200:
             return res.json().get("text", "")
+        else:
+            st.error(f"Whisper API Error: {res.status_code} - {res.text}")
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
     return None
 
-
 # ==========================================
-# 4. HÀM THU ÂM VÀ CHẤM ĐIỂM GIỌNG NÓI
+# 4. SPEECH EVALUATION & AUDIO PLAYER (YÊU CẦU 5, 11)
 # ==========================================
-def record_and_evaluate_speech(reference_text, label):
-    st.markdown(f"**Văn bản luyện đọc:** *\"{reference_text}\"*")
+def record_and_evaluate_speech(reference_text, label, context_info=""):
+    st.markdown(f"**Target Text/Context:** *\"{reference_text}\"*")
     render_tts_button(reference_text, f"tts_{hash(label+reference_text)}")
     
-    audio_val = st.audio_input("Nhấn nút micro để ghi âm giọng đọc:", key=f"rec_{hash(label+reference_text)}")
+    rec_key = f"rec_{hash(label)}"
+    audio_val = st.audio_input("Click mic to record your voice:", key=rec_key)
+    
+    # Save audio recording in session state
     if audio_val:
-        audio_bytes = audio_val.read()
-        st.audio(audio_bytes, format="audio/wav")
-        if st.button("🎯 Phân tích Ngữ điệu & Trọng âm AI", key=f"btn_{hash(label+reference_text)}"):
-            with st.spinner("AI đang chấm điểm giọng nói..."):
+        st.session_state.audio_recordings[label] = audio_val.read()
+    
+    # Playback saved audio
+    if label in st.session_state.audio_recordings:
+        st.markdown("**Your Saved Recording:**")
+        st.audio(st.session_state.audio_recordings[label], format="audio/wav")
+        
+        if st.button("🎯 Analyze Pronunciation & Intonation AI", key=f"btn_{hash(label)}"):
+            with st.spinner("AI is analyzing speech..."):
+                audio_bytes = st.session_state.audio_recordings[label]
                 transcribed = transcribe_audio_groq(audio_bytes, st.session_state.groq_api_key)
                 if transcribed:
-                    st.info(f"📝 **AI nghe được:** \"{transcribed}\"")
+                    st.info(f"📝 **AI Transcribed:** \"{transcribed}\"")
                     prompt = f"""
-                    Đánh giá phát âm C1/IELTS Speaking:
-                    - Văn bản gốc: "{reference_text}"
-                    - Học viên nói: "{transcribed}"
-                    Chấm điểm theo tiêu chí bằng tiếng Việt:
-                    1. Điểm tổng quan (/10)
-                    2. Trọng âm từ & Trọng âm câu (Sentence Stress)
-                    3. Ngữ điệu (Rising/Falling Intonation)
-                    4. Lỗi phát âm chi tiết & Cách khắc phục.
+                    Evaluate C1/IELTS Speaking performance strictly in English:
+                    - Reference/Prompt: "{reference_text}"
+                    - Context Info: "{context_info}"
+                    - Student Spoke: "{transcribed}"
+                    
+                    Provide feedback in standard English using the format:
+                    1. Overall Score (/10)
+                    2. Pronunciation & Word Stress
+                    3. Sentence Intonation & Rhythm
+                    4. Relevance to Context & Content Quality
+                    5. Detailed Mistakes & Improvements
                     """
                     feedback = call_groq_llm(prompt, st.session_state.groq_api_key)
                     if feedback:
                         st.markdown(f"<div class='studio-card'>{feedback}</div>", unsafe_allow_html=True)
 
-
 # ==========================================
-# 5. DỮ LIỆU BÀI HỌC B2 -> C1 (30 NGÀY MASTERY)
+# 5. CURRICULUM DATA B2 -> C1 (YÊU CẦU 3, 5, 6, 7, 8, 9, 10, 11)
 # ==========================================
 def get_curriculum_day(day_num):
     topics = [
@@ -272,109 +316,222 @@ def get_curriculum_day(day_num):
     topic = topics[(day_num - 1) % len(topics)]
     
     vocab = [
-        {"word": "Consolidate", "pos": "verb", "en": "To combine into a single, stronger unit.", "vn": "Củng cố / Sáp nhập", "syn": "Merge, Strengthen", "example": "The company plans to consolidate its position in the European market."},
-        {"word": "Feasibility", "pos": "noun", "en": "The degree to which something is possible.", "vn": "Tính khả thi", "syn": "Viability, Practicability", "example": "We conducted a feasibility study before launching the project."},
-        {"word": "Disruption", "pos": "noun", "en": "Disturbance that alters a system.", "vn": "Sự đứt gãy / Đột phá", "syn": "Upheaval, Disturbance", "example": "AI technology is causing massive disruption in traditional industries."},
-        {"word": "Benchmark", "pos": "noun", "en": "A standard against which things may be measured.", "vn": "Tiêu chuẩn đánh giá", "syn": "Criterion, Yardstick", "example": "Our Q3 performance set a new benchmark for the sector."},
-        {"word": "Mitigate", "pos": "verb", "en": "Make less severe, serious, or painful.", "vn": "Giảm thiểu rủi ro", "syn": "Alleviate, Reduce", "example": "Steps were taken to mitigate the financial impact of the crisis."},
-        {"word": "Leverage", "pos": "verb", "en": "Use something to maximum advantage.", "vn": "Tận dụng tối đa", "syn": "Exploit, Utilize", "example": "We must leverage our brand equity to launch new products."},
-        {"word": "Scalability", "pos": "noun", "en": "Ability of a system to handle growing work.", "vn": "Khả năng mở rộng", "syn": "Expandability", "example": "Cloud architecture offers incredible business scalability."},
-        {"word": "Pivot", "pos": "verb", "en": "Change strategic direction abruptly.", "vn": "Chuyển hướng chiến lược", "syn": "Shift, Reorient", "example": "The startup pivoted from B2C to an enterprise B2B model."},
-        {"word": "Stagnation", "pos": "noun", "en": "State of not flowing, moving, or changing.", "vn": "Sự đình trệ / Trì trệ", "syn": "Inaction, Standstill", "example": "Economic stagnation led to reduced corporate investment."},
-        {"word": "Unprecedented", "pos": "adj", "en": "Never done or known before.", "vn": "Chưa từng có tiền lệ", "syn": "Unparalleled, Novel", "example": "The sector experienced unprecedented growth during the quarter."}
+        {"word": "Consolidate", "pos": "verb", "en": "To combine into a single, stronger unit.", "vn": "To combine into a single, stronger unit.", "syn": "Merge, Strengthen", "example": "The company plans to consolidate its position in the European market."},
+        {"word": "Feasibility", "pos": "noun", "en": "The degree to which something is possible.", "vn": "The degree to which something is possible.", "syn": "Viability, Practicability", "example": "We conducted a feasibility study before launching the project."},
+        {"word": "Disruption", "pos": "noun", "en": "Disturbance that alters a system.", "vn": "Disturbance that alters a system.", "syn": "Upheaval, Disturbance", "example": "AI technology is causing massive disruption in traditional industries."},
+        {"word": "Benchmark", "pos": "noun", "en": "A standard against which things may be measured.", "vn": "A standard against which things may be measured.", "syn": "Criterion, Yardstick", "example": "Our Q3 performance set a new benchmark for the sector."},
+        {"word": "Mitigate", "pos": "verb", "en": "Make less severe, serious, or painful.", "vn": "Make less severe, serious, or painful.", "syn": "Alleviate, Reduce", "example": "Steps were taken to mitigate the financial impact of the crisis."},
+        {"word": "Leverage", "pos": "verb", "en": "Use something to maximum advantage.", "vn": "Use something to maximum advantage.", "syn": "Exploit, Utilize", "example": "We must leverage our brand equity to launch new products."},
+        {"word": "Scalability", "pos": "noun", "en": "Ability of a system to handle growing work.", "vn": "Ability of a system to handle growing work.", "syn": "Expandability", "example": "Cloud architecture offers incredible business scalability."},
+        {"word": "Pivot", "pos": "verb", "en": "Change strategic direction abruptly.", "vn": "Change strategic direction abruptly.", "syn": "Shift, Reorient", "example": "The startup pivoted from B2C to an enterprise B2B model."},
+        {"word": "Stagnation", "pos": "noun", "en": "State of not flowing, moving, or changing.", "vn": "State of not flowing, moving, or changing.", "syn": "Inaction, Standstill", "example": "Economic stagnation led to reduced corporate investment."},
+        {"word": "Unprecedented", "pos": "adj", "en": "Never done or known before.", "vn": "Never done or known before.", "syn": "Unparalleled, Novel", "example": "The sector experienced unprecedented growth during the quarter."}
+    ]
+
+    # Pronunciation texts >= 3 sentences (Yêu cầu 5iii)
+    pronunciation = [
+        "Our strategic initiatives have significantly consolidated our market position over the past fiscal year. Executive board members have agreed to increase capital expenditure to expand our infrastructure. Moving forward, this framework will guarantee operational excellence across all major regions.",
+        "To mitigate operational risks, executive leadership approved an unprecedented risk governance framework yesterday. This multi-layered initiative addresses cyber security vulnerabilities, compliance hurdles, and potential supply chain bottlenecks. By doing so, we ensure long-term stability and sustained market leadership.",
+        "Leveraging digital scalability remains the primary benchmark for enterprise growth in this quarter. Companies that fail to adapt their infrastructure will face severe market stagnation and revenue decline. Therefore, accelerating our cloud integration strategy is essential for immediate competitive advantage."
+    ]
+
+    # Grammar with newlines (Yêu cầu 6i) and 10 questions total (Yêu cầu 6ii)
+    grammar_theory = """
+    **Advanced Business Conditionals: Inversion Structure (C1 Level)**
+    <br><br>
+    <b>1. Type 1 Conditional Inversion (Formal Requests / Future Possibilities):</b><br>
+    • Standard: If you require further clarification, please contact our legal counsel.<br>
+    • Inverted: <b>Should you require further clarification,</b> please contact our legal counsel.<br><br>
+    
+    <b>2. Type 2 Conditional Inversion (Hypothetical Present / Future Scenarios):</b><br>
+    • Standard: If the market were to collapse, our contingency plan would take effect.<br>
+    • Inverted: <b>Were the market to collapse,</b> our contingency plan would take effect.<br><br>
+    
+    <b>3. Type 3 Conditional Inversion (Hypothetical Past Scenarios):</b><br>
+    • Standard: If the board had approved the merger, our revenue would have doubled.<br>
+    • Inverted: <b>Had the board approved the merger,</b> our revenue would have doubled.<br>
+    """
+    
+    grammar_mcq = [
+        {"q": "_____ the executive committee mandate the budget, we will proceed immediately.", "options": ["Had", "Should", "Were", "Unless"], "a": "Should"},
+        {"q": "_____ the company mitigated risks earlier, the losses would have been avoided.", "options": ["Were", "Had", "Should", "If only"], "a": "Had"},
+        {"q": "_____ the price of raw materials to skyrocket, we would adjust our pricing strategy.", "options": ["Were", "Should", "Had", "If"], "a": "Were"},
+        {"q": "Should you _____ any issues with compliance, notify the audit team.", "options": ["encounter", "encountered", "encounters", "had encountered"], "a": "encounter"},
+        {"q": "Had the CEO _____ the market trends, the product launch would not have failed.", "options": ["foreseen", "foresaw", "foresee", "foreseeing"], "a": "foreseen"}
+    ]
+    grammar_fitb = [
+        {"q": "_____ (Were) the firm to pivot now, stakeholders might object strongly.", "a": "Were"},
+        {"q": "Should you _____ (need) additional leverage during negotiations, review the clause.", "a": "need"},
+        {"q": "_____ (Had) the board known about the disruption, they would have restructured early.", "a": "Had"},
+        {"q": "Were we to _____ (optimize) the supply chain, overhead costs would fall by 15%.", "a": "optimize"},
+        {"q": "Should any partner _____ (violate) the terms, the contract will be terminated.", "a": "violate"}
+    ]
+
+    # Reading passage >= 20 sentences (Yêu cầu 7i) & 7 questions total (Yêu cầu 7ii)
+    reading_text = """
+1. In an era marked by unprecedented global market volatility, modern corporations face severe operational threats.
+2. Navigating this complex landscape requires executive leadership to move far beyond mere baseline compliance.
+3. Establishing long-term organizational sustainability demands proactive strategic planning and robust agility.
+4. Adopting rigorous feasibility frameworks ensures that capital and human resource allocations align with strategic vision.
+5. Furthermore, failure to mitigate systemic vulnerabilities frequently precipitates irreversible brand damage across global markets.
+6. Corporate leaders must systematically analyze potential risk factors before initiating major capital expenditures.
+7. Strategic consolidation of operational units often yields significant cost savings during economic downturns.
+8. By consolidating redundant departments, enterprises streamline internal communication and boost decision-making speed.
+9. However, sudden structural changes can trigger internal resistance if organizational culture is neglected.
+10. Therefore, effective change management communication must accompany every strategic realignment effort.
+11. Market disruption driven by rapid artificial intelligence adoption presents both severe risks and lucrative horizons.
+12. Firms that fail to leverage technological advancements risk fast-approaching market obsolescence and revenue decline.
+13. Setting dynamic operational benchmarks allows executives to evaluate performance against top industry competitors.
+14. These benchmarks must be updated quarterly to maintain relevance in rapidly shifting competitive environments.
+15. Achieving seamless scalability requires scalable IT architectures capable of handling sudden spikes in consumer demand.
+16. Without cloud-native infrastructure, expanding into emerging international markets becomes prohibitively expensive.
+17. Startups and enterprise firms alike must know exactly when to pivot away from underperforming product lines.
+18. A well-executed strategic pivot can reinvigorate growth and open completely unexploited revenue channels.
+19. Economic stagnation remains an ever-present threat for organizations that cling stubbornly to outdated paradigms.
+20. In conclusion, sustainable success belongs exclusively to businesses that embrace agility, continuous learning, and innovation.
+"""
+    reading_mcq = [
+        {"q": "According to sentence 2, what must executive leadership do in volatile markets?", "options": ["Maintain baseline compliance only", "Move far beyond baseline compliance", "Reduce operational agility", "Ignore market volatility"], "a": "Move far beyond baseline compliance"},
+        {"q": "What is the result of adopting rigorous feasibility frameworks (sentence 4)?", "options": ["Guaranteed revenue", "Resource alignment with strategic vision", "Higher tax liabilities", "Reduced workforce"], "a": "Resource alignment with strategic vision"},
+        {"q": "Consolidating operational units primarily helps companies to (sentence 7):", "options": ["Increase overhead", "Achieve cost savings during downturns", "Delay decision-making", "Replace senior management"], "a": "Achieve cost savings during downturns"},
+        {"q": "What risk do firms face if they ignore technological advancements (sentence 12)?", "options": ["Rapid international expansion", "Market obsolescence and revenue decline", "Improved benchmarks", "Zero disruption"], "a": "Market obsolescence and revenue decline"}
+    ]
+    reading_fitb = [
+        {"q": "Economic _____ (sentence 19) remains a constant threat to static companies.", "a": "stagnation"},
+        {"q": "Firms must set dynamic operational _____ (sentence 13) to evaluate performance.", "a": "benchmarks"},
+        {"q": "A well-executed strategic _____ (sentence 18) can reinvigorate growth.", "a": "pivot"}
+    ]
+
+    # Listening briefing >= 3 minutes (~450 words) (Yêu cầu 8i) & 7 questions total (Yêu cầu 8ii)
+    listening_script = """
+Good morning, ladies and gentlemen of the board, and welcome to our annual strategic roadmap presentation. Today, I will be addressing our operational performance under topic Executive Corporate Strategy, evaluating current market challenges, and presenting our multi-phase expansion framework.
+
+Over the past four quarters, global markets have experienced unprecedented volatility, characterized by supply chain disruptions, fluctuating interest rates, and inflationary pressures. Despite these macroeconomic headwinds, our company has maintained remarkable resilience. Through a series of aggressive risk mitigation strategies, we successfully safeguarded our core revenue streams while expanding our market share in target territories.
+
+A central driver of our success has been the decision to consolidate our regional operations. By merging redundant business units into centralized hubs, we reduced operating expenses by 18% while enhancing cross-departmental collaboration. This structural consolidation allowed us to reallocate capital into high-growth divisions, specifically our digital transformation initiatives.
+
+Furthermore, we conducted rigorous feasibility studies prior to launching our cloud integration architecture. These studies confirmed that upgrading our legacy software would dramatically enhance operational scalability. As a result, our enterprise platform can now support a 200% increase in active users without suffering performance degradation or server downtime.
+
+However, we must remain vigilant. Market disruption driven by AI automation is accelerating rapidly across our sector. Competitors who fail to adapt to these technological shifts are experiencing severe stagnation. To maintain our competitive edge, executive leadership has outlined three strategic priorities for the upcoming fiscal year.
+
+First, we will continue to leverage predictive AI tools to optimize inventory management and reduce lead times. Second, we will establish clear performance benchmarks for all international subsidiaries to ensure quality control and brand alignment. Third, we will remain prepared to pivot our strategy rapidly should geopolitical or economic conditions deteriorate.
+
+In conclusion, our strategic fundamentals remain rock-solid. By combining disciplined financial governance with aggressive technological innovation, we are uniquely positioned to deliver long-term value to our shareholders. Thank you for your continued confidence in our executive vision.
+"""
+    listening_mcq = [
+        {"q": "By how much did structural consolidation reduce operating expenses?", "options": ["10%", "15%", "18%", "25%"], "a": "18%"},
+        {"q": "What did the feasibility studies confirm regarding cloud integration?", "options": ["It would increase costs", "It would enhance operational scalability", "It was unnecessary", "It would cause server downtime"], "a": "It would enhance operational scalability"},
+        {"q": "What capacity increase can the upgraded enterprise platform support?", "options": ["50%", "100%", "150%", "200%"], "a": "200%"},
+        {"q": "What threat is affecting competitors who fail to adopt AI automation?", "options": ["Severe stagnation", "Rapid overfunding", "Lack of compliance", "Immediate bankruptcy"], "a": "Severe stagnation"}
+    ]
+    listening_fitb = [
+        {"q": "The company reallocated capital into high-growth _____ initiatives.", "a": "digital transformation"},
+        {"q": "The company will continue to _____ predictive AI tools for inventory management.", "a": "leverage"},
+        {"q": "Executive leadership established clear performance _____ for subsidiaries.", "a": "benchmarks"}
+    ]
+
+    # Writing & Speaking detailed context prompts (Yêu cầu 9i, 11i)
+    writing_prompt = f"""
+**Context & Current Situation:**
+You are the Chief Strategy Officer (CSO) at a mid-sized fintech corporation struggling with rising operational costs (up 22% YoY) and increased market competition. The CEO has requested an immediate executive memo proposing a strategic pivot.
+
+**Requirements & Expectation:**
+Write an executive memo (200-250 words) addressed to the Board of Directors.
+- Detail the current operational challenges.
+- Propose 2-3 concrete strategic initiatives (e.g., resource consolidation, AI automation).
+- Clearly define expected KPIs (e.g., 15% cost reduction, market share stability).
+- Incorporate at least 3 C1 vocabulary words from today's lesson (e.g., consolidate, mitigate, leverage, benchmark).
+"""
+
+    speaking_prompt = f"""
+**Context & Current Situation:**
+You are heading the Business Development division. Your sector is currently facing severe economic stagnation and new regulatory hurdles. You are presenting at an emergency Board meeting to request a $2M budget allocation for strategic realignment.
+
+**Requirements & Expectation:**
+Deliver a 2-minute executive pitch (150-200 words) convincing the Board to approve the budget.
+- Describe the current crisis/situation.
+- Explain why continuing current operations is unacceptable.
+- Pitch your strategic solution using at least 3 C1 words (e.g., pivot, feasibility, scalability).
+- End with a strong persuasive conclusion on ROI expectations.
+"""
+
+    translation = [
+        {"id": 1, "vn": "Chúng tôi cần củng cố vị thế thị trường trước khi mở rộng quy mô.", "en": "We need to consolidate our market position before scaling up."},
+        {"id": 2, "vn": "Nghiên cứu tính khả thi đã chỉ ra những rủi ro tài chính tiềm ẩn.", "en": "The feasibility study highlighted potential financial risks."},
+        {"id": 3, "vn": "Doanh nghiệp phải tận dụng công nghệ AI để tối ưu hóa quy trình.", "en": "The business must leverage AI technology to optimize workflows."},
+        {"id": 4, "vn": "Sự đứt gãy chuỗi cung ứng đã gây ra thiệt hại chưa từng có.", "en": "The supply chain disruption caused unprecedented damages."},
+        {"id": 5, "vn": "Tiêu chuẩn đánh giá này giúp kiểm soát chất lượng dự án.", "en": "This benchmark helps control project quality."},
+        {"id": 6, "vn": "Nhóm nghiên cứu đã đề xuất giải pháp giảm thiểu rủi ro vận hành.", "en": "The research team proposed solutions to mitigate operational risks."},
+        {"id": 7, "vn": "Khả năng mở rộng của nền tảng này là ưu điểm cạnh tranh lớn.", "en": "The scalability of this platform is a major competitive advantage."},
+        {"id": 8, "vn": "Công ty đã chuyển hướng chiến lược sang mô hình kinh doanh B2B.", "en": "The company pivoted its strategy to a B2B business model."},
+        {"id": 9, "vn": "Sự trì trệ kinh tế ảnh hưởng trực tiếp đến doanh thu quý 3.", "en": "Economic stagnation directly impacted Q3 revenue."},
+        {"id": 10, "vn": "Nếu ban giám đốc chấp thuận, chúng tôi sẽ triển khai kế hoạch ngay.", "en": "Should the board approve, we will implement the plan immediately."}
     ]
 
     return {
         "title": f"Day {day_num}: {topic} (B2 → C1 Level)",
         "topic": topic,
         "vocab": vocab,
-        "pronunciation": [
-            f"Our strategic initiatives have significantly consolidated market position over the fiscal year.",
-            f"To mitigate operational risks, executive leadership approved an unprecedented risk governance framework.",
-            f"Leveraging digital scalability remains the primary benchmark for corporate growth in this quarter."
-        ],
+        "pronunciation": pronunciation,
         "grammar": {
             "title": "Inversion in Advanced Business Conditionals (C1 Grammar)",
-            "theory": """
-            **Cấu trúc Đảo ngữ Điều kiện C1 trong Báo cáo & Đàm phán:**
-            * *Type 1 (Should):* **Should you require further clarification,** please contact our legal counsel. (Thay cho *If you require...*)
-            * *Type 2 (Were):* **Were the market to collapse,** our contingency plan would take effect. (Thay cho *If the market were to...*)
-            * *Type 3 (Had):* **Had the board approved the merger,** our revenue would have doubled. (Thay cho *If the board had approved...*)
-            """,
-            "mcq": [
-                {"q": "_____ the executive committee mandate the budget, we will proceed immediately.", "options": ["Had", "Should", "Were", "Unless"], "a": "Should"},
-                {"q": "_____ the company mitigated risks earlier, the losses would have been avoided.", "options": ["Were", "Had", "Should", "If only"], "a": "Had"}
-            ],
-            "fitb": [
-                {"q": "_____ (Were) the firm to pivot now, stakeholders might object.", "a": "Were"},
-                {"q": "Should you _____ (need) additional leverage, review the clause.", "a": "need"}
-            ]
+            "theory": grammar_theory,
+            "mcq": grammar_mcq,
+            "fitb": grammar_fitb
         },
         "reading": {
             "title": f"Executive Summary: Navigating {topic}",
-            "text": f"In an era of market volatility, corporations must move beyond mere compliance to achieve sustainable growth. Adopting robust feasibility frameworks ensures that resource allocation aligns with core objectives. Failure to mitigate systemic vulnerabilities often leads to unprecedented stagnation across operational units.",
-            "mcq": [
-                {"q": "What is essential for sustainable growth according to the passage?", "options": ["Simple compliance", "Robust feasibility frameworks", "Reducing resources", "Ignoring volatility"], "a": "Robust feasibility frameworks"},
-                {"q": "Systemic vulnerabilities lead directly to:", "options": ["Scalability", "Stagnation", "Immediate profit", "Rebranding"], "a": "Stagnation"}
-            ],
-            "fitb": [
-                {"q": "Companies must move beyond mere _____ to achieve long-term growth.", "a": "compliance"},
-                {"q": "Unprecedented _____ occurs when vulnerabilities are left unmitigated.", "a": "stagnation"}
-            ]
+            "text": reading_text,
+            "mcq": reading_mcq,
+            "fitb": reading_fitb
         },
         "listening": {
-            "script": f"Welcome shareholders. Today's quarterly briefing focuses on {topic}. Despite macro economic headwinds, our strategic pivot enabled us to consolidate existing markets while achieving unprecedented scalability in logistics.",
-            "mcq": [
-                {"q": "What enabled the market consolidation according to the speaker?", "options": ["Macro headwinds", "Strategic pivot", "Budget cuts", "Staff reduction"], "a": "Strategic pivot"}
-            ],
-            "fitb": [
-                {"q": "The company achieved unprecedented _____ in logistics.", "a": "scalability"}
-            ]
+            "script": listening_script,
+            "mcq": listening_mcq,
+            "fitb": listening_fitb
         },
-        "writing": f"Write an executive memo (150-200 words) proposing a strategic shift to mitigate risks in '{topic}'. Incorporate at least 3 C1 vocabulary words from today's lesson.",
-        "speaking": f"Deliver a 2-minute pitch to board members convincing them why your department needs to pivot strategy regarding '{topic}'.",
-        "translation": [
-            {"vn": "1. Chúng tôi cần củng cố vị thế thị trường trước khi mở rộng quy mô.", "en": "We need to consolidate our market position before scaling up."},
-            {"vn": "2. Nghiên cứu tính khả thi đã chỉ ra những rủi ro tài chính tiềm ẩn.", "en": "The feasibility study highlighted potential financial risks."},
-            {"vn": "3. Doanh nghiệp phải tận dụng công nghệ AI để tối ưu hóa quy trình.", "en": "The business must leverage AI technology to optimize workflows."},
-            {"vn": "4. Sự đứt gãy chuỗi cung ứng đã gây ra thiệt hại chưa từng có.", "en": "The supply chain disruption caused unprecedented damages."},
-            {"vn": "5. Tiêu chuẩn đánh giá này giúp kiểm soát chất lượng dự án.", "en": "This benchmark helps control project quality."},
-            {"vn": "6. Nhóm nghiên cứu đã đề xuất giải pháp giảm thiểu rủi ro vận hành.", "en": "The research team proposed solutions to mitigate operational risks."},
-            {"vn": "7. Khả năng mở rộng của nền tảng này là ưu điểm cạnh tranh lớn.", "en": "The scalability of this platform is a major competitive advantage."},
-            {"vn": "8. Công ty đã chuyển hướng chiến lược sang mô hình kinh doanh B2B.", "en": "The company pivoted its strategy to a B2B business model."},
-            {"vn": "9. Sự trì trệ kinh tế ảnh hưởng trực tiếp đến doanh thu quý 3.", "en": "Economic stagnation directly impacted Q3 revenue."},
-            {"vn": "10. Nếu ban giám đốc chấp thuận, chúng tôi sẽ triển khai kế hoạch ngay.", "en": "Should the board approve, we will implement the plan immediately."}
-        ]
+        "writing": writing_prompt,
+        "speaking": speaking_prompt,
+        "translation": translation
     }
 
-
 # ==========================================
-# 6. GIAO DIỆN CHÍNH & 8 TABS KỸ NĂNG
+# 6. MAIN APPLICATION & 8 SKILL TABS
 # ==========================================
 def main():
     st.sidebar.title("⚡ AI English Studio")
-    st.sidebar.caption("Lộ trình B2 → C1 Mastery (30 Ngày)")
+    st.sidebar.caption("Roadmap B2 → C1 Mastery (30 Days)")
 
     api_key_in = st.sidebar.text_input("🔑 Groq API Key:", value=st.session_state.groq_api_key, type="password")
     if api_key_in != st.session_state.groq_api_key:
-        st.session_state.groq_api_key = api_key_in
-        save_data_to_file()
+        st.session_state.groq_api_key = api_key_in.strip()
 
     st.sidebar.divider()
     
+    # Save Progress Button (Yêu cầu 2)
+    if st.sidebar.button("💾 SAVE PROGRESS"):
+        save_data_to_file()
+
+    st.sidebar.divider()
+
     comp_len = len(st.session_state.completed_days)
-    st.sidebar.write(f"**Tiến độ khóa học:** {comp_len}/30 Ngày ({int(comp_len/30*100)}%)")
+    st.sidebar.write(f"**Course Progress:** {comp_len}/30 Days ({int(comp_len/30*100)}%)")
     st.sidebar.progress(comp_len / 30.0)
 
     selected_day = st.sidebar.selectbox(
-        "📅 Chọn bài học ngày:",
+        "📅 Select Lesson Day:",
         options=list(range(1, 31)),
-        format_func=lambda x: f"Day {x}: {get_curriculum_day(x)['title']}"
+        format_func=lambda x: f"Day {x}: {get_curriculum_day(x)['topic']}"
     )
+
+    if st.sidebar.checkbox("Mark Day as Completed", value=(selected_day in st.session_state.completed_days)):
+        st.session_state.completed_days.add(selected_day)
+    else:
+        st.session_state.completed_days.discard(selected_day)
 
     day_data = get_curriculum_day(selected_day)
 
-    # Header Studio
+    # Main Header Studio
     st.markdown(
         f"""
         <div class="studio-card">
@@ -382,7 +539,7 @@ def main():
                 <div>
                     <span class="badge-c1">C1 LEVEL MASTERY</span>
                     <h2 style="margin-top: 8px; margin-bottom: 4px;">{day_data['title']}</h2>
-                    <p style="color: #4A5568 !important; margin: 0;">Chủ đề trọng tâm: <b>{day_data['topic']}</b></p>
+                    <p style="color: #4A5568 !important; margin: 0;">Main Topic: <b>{day_data['topic']}</b></p>
                 </div>
             </div>
         </div>
@@ -402,7 +559,7 @@ def main():
     ])
 
     # ------------------------------------------
-    # TAB 1: VOCABULARY & GAMES
+    # TAB 1: VOCABULARY & GAMES (YÊU CẦU 3, 4)
     # ------------------------------------------
     with t1:
         st.subheader("📚 10 C1 Vocabulary Words of the Day")
@@ -416,10 +573,9 @@ def main():
                             <h3 style="margin:0;">{idx+1}. {v['word']}</h3>
                             <span class="badge-b2">{v['pos']}</span>
                         </div>
-                        <p style="margin-top:8px;"><b>Nghĩa EN:</b> {v['en']}</p>
-                        <p><b>Nghĩa VN:</b> {v['vn']}</p>
-                        <p><b>Từ đồng nghĩa:</b> <code>{v['syn']}</code></p>
-                        <p><b>Ví dụ:</b> <i>"{v['example']}"</i></p>
+                        <p style="margin-top:8px;"><b>Meaning (EN):</b> {v['en']}</p>
+                        <p><b>Synonyms:</b> <code>{v['syn']}</code></p>
+                        <p><b>Example:</b> <i>"{v['example']}"</i></p>
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -429,169 +585,168 @@ def main():
         st.divider()
         st.subheader("🎮 Vocabulary Games Practice")
 
-        # Game 1: Multiple Choice
-        st.markdown("### 🕹️ Game 1: C1 Word Definition Quiz (5 Câu hỏi)")
+        st.markdown("### 🕹️ Game 1: C1 Word Definition Quiz (5 Questions)")
         score_g1 = 0
         for i in range(5):
             w = day_data["vocab"][i]
-            st.markdown(f"**Câu {i+1}:** Nghĩa đúng của từ **\"{w['word']}\"** là gì?")
-            opts = [w['vn'], day_data["vocab"][(i+1)%10]['vn'], day_data["vocab"][(i+2)%10]['vn'], day_data["vocab"][(i+3)%10]['vn']]
+            st.markdown(f"**Question {i+1}:** What is the correct definition of **\"{w['word']}\"**?")
+            opts = [w['en'], day_data["vocab"][(i+1)%10]['en'], day_data["vocab"][(i+2)%10]['en'], day_data["vocab"][(i+3)%10]['en']]
             random.seed(i + selected_day)
             random.shuffle(opts)
-            ans = st.radio(f"Chọn đáp án cho câu {i+1}:", opts, key=f"g1_q_{selected_day}_{i}")
-            if ans == w['vn']:
+            ans = st.radio(f"Select option Q{i+1}:", opts, key=f"g1_q_{selected_day}_{i}")
+            if ans == w['en']:
                 score_g1 += 1
-        if st.button("Kiểm tra điểm Game 1"):
-            st.success(f"🎉 Điểm Game 1 của bạn: {score_g1}/5")
+        if st.button("Check Game 1 Score"):
+            st.success(f"🎉 Game 1 Score: {score_g1}/5")
 
         st.divider()
 
-        # Game 2: Fill-in-the-blank
-        st.markdown("### 🧩 Game 2: Context Sentence Fill-in-the-blank (5 Câu hỏi)")
+        st.markdown("### 🧩 Game 2: Context Sentence Fill-in-the-blank (5 Questions)")
         score_g2 = 0
         for i in range(5, 10):
             w = day_data["vocab"][i]
             sentence = w["example"].replace(w["word"], "________").replace(w["word"].lower(), "________")
-            st.markdown(f"**Câu {i-4}:** Điền từ thích hợp: *\"{sentence}\"*")
-            u_ans = st.text_input(f"Nhập từ câu {i-4}:", key=f"g2_q_{selected_day}_{i}")
+            st.markdown(f"**Question {i-4}:** Fill in the blank: *\"{sentence}\"*")
+            u_ans = st.text_input(f"Enter word Q{i-4}:", key=f"g2_q_{selected_day}_{i}")
             if u_ans.strip().lower() == w["word"].lower():
                 score_g2 += 1
-        if st.button("Kiểm tra điểm Game 2"):
-            st.success(f"🎉 Điểm Game 2 của bạn: {score_g2}/5")
+        if st.button("Check Game 2 Score"):
+            st.success(f"🎉 Game 2 Score: {score_g2}/5")
 
     # ------------------------------------------
-    # TAB 2: PRONUNCIATION
+    # TAB 2: PRONUNCIATION (YÊU CẦU 5)
     # ------------------------------------------
     with t2:
         st.subheader("🗣️ C1 Pronunciation & Intonation Drills")
-        st.caption("Luyện tập 3 đoạn/câu đọc nâng cao theo chủ đề bài học. Thu âm để AI chấm trọng âm và ngữ điệu:")
+        st.caption("Practice 3 advanced paragraph drills. Record your audio to receive AI intonation, stress, and pronunciation scoring:")
         for idx, p in enumerate(day_data["pronunciation"]):
-            st.markdown(f"<div class='studio-card'><h4>Đoạn {idx+1}</h4></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='studio-card'><h4>Paragraph {idx+1}</h4></div>", unsafe_allow_html=True)
             record_and_evaluate_speech(p, label=f"pron_tab_{selected_day}_{idx}")
 
     # ------------------------------------------
-    # TAB 3: GRAMMAR RULES
+    # TAB 3: GRAMMAR RULES (YÊU CẦU 6)
     # ------------------------------------------
     with t3:
         st.subheader(f"📐 {day_data['grammar']['title']}")
         st.markdown(f"<div class='studio-card'>{day_data['grammar']['theory']}</div>", unsafe_allow_html=True)
         
-        st.markdown("### 📝 Kiểm tra Ngữ pháp")
-        st.markdown("#### Phần 1: Trắc nghiệm Multiple Choice")
+        st.markdown("### 📝 Grammar Practice Assessment (10 Questions Total)")
+        st.markdown("#### Part 1: Multiple Choice Questions (5 Questions)")
         for idx, q in enumerate(day_data["grammar"]["mcq"]):
             st.write(f"**Q{idx+1}:** {q['q']}")
-            u_ans = st.radio(f"Đáp án Q{idx+1}:", q['options'], key=f"g_mcq_{selected_day}_{idx}")
+            u_ans = st.radio(f"Select option Q{idx+1}:", q['options'], key=f"g_mcq_{selected_day}_{idx}")
             if u_ans == q['a']:
-                st.caption("✅ Đúng!")
+                st.caption("✅ Correct!")
 
-        st.markdown("#### Phần 2: Điền từ vào chỗ trống Fill-in-the-blank")
+        st.markdown("#### Part 2: Fill-in-the-blank Questions (5 Questions)")
         for idx, q in enumerate(day_data["grammar"]["fitb"]):
-            st.write(f"**Q{idx+1}:** {q['q']}")
-            u_ans = st.text_input(f"Nhập từ Q{idx+1}:", key=f"g_fitb_{selected_day}_{idx}")
+            st.write(f"**Q{idx+6}:** {q['q']}")
+            u_ans = st.text_input(f"Enter answer Q{idx+6}:", key=f"g_fitb_{selected_day}_{idx}")
             if u_ans.strip().lower() == q['a'].lower():
-                st.caption("✅ Chính xác!")
+                st.caption("✅ Correct!")
 
     # ------------------------------------------
-    # TAB 4: READING
+    # TAB 4: READING (YÊU CẦU 7)
     # ------------------------------------------
     with t4:
         st.subheader(f"📖 {day_data['reading']['title']}")
-        st.markdown(f"<div class='studio-card'><p style='font-size:16px; line-height:1.6;'>{day_data['reading']['text']}</p></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='studio-card'><p style='font-size:15px; line-height:1.8;'>{day_data['reading']['text']}</p></div>", unsafe_allow_html=True)
         
-        st.markdown("### 📝 Bài tập Đọc hiểu")
-        st.markdown("#### Multiple Choice Questions")
+        st.markdown("### 📝 Reading Comprehension (7 Questions Total)")
+        st.markdown("#### Part 1: Multiple Choice Questions")
         for idx, q in enumerate(day_data["reading"]["mcq"]):
             st.write(f"**Q{idx+1}:** {q['q']}")
-            st.radio(f"Lựa chọn Q{idx+1}:", q['options'], key=f"r_mcq_{selected_day}_{idx}")
+            st.radio(f"Select option R{idx+1}:", q['options'], key=f"r_mcq_{selected_day}_{idx}")
 
-        st.markdown("#### Fill in the blank")
+        st.markdown("#### Part 2: Fill-in-the-blank Questions")
         for idx, q in enumerate(day_data["reading"]["fitb"]):
-            st.write(f"**Q{idx+1}:** {q['q']}")
-            st.text_input(f"Nhập từ trả lời Q{idx+1}:", key=f"r_fitb_{selected_day}_{idx}")
+            st.write(f"**Q{idx+5}:** {q['q']}")
+            st.text_input(f"Enter word R{idx+5}:", key=f"r_fitb_{selected_day}_{idx}")
 
     # ------------------------------------------
-    # TAB 5: LISTENING
+    # TAB 5: LISTENING (YÊU CẦU 8)
     # ------------------------------------------
     with t5:
-        st.subheader("🎧 Business Audio Briefing Script")
-        st.markdown(f"<div class='studio-card'><p style='font-size:16px; line-height:1.6;'><i>\"{day_data['listening']['script']}\"</i></p></div>", unsafe_allow_html=True)
+        st.subheader("🎧 Business Audio Briefing Script (~3 Minutes Read)")
+        st.markdown(f"<div class='studio-card'><p style='font-size:15px; line-height:1.8;'><i>\"{day_data['listening']['script']}\"</i></p></div>", unsafe_allow_html=True)
         render_tts_button(day_data['listening']['script'], f"listen_script_{selected_day}")
         
-        st.markdown("### 📝 Bài tập Nghe hiểu")
+        st.markdown("### 📝 Listening Comprehension Exercises (7 Questions Total)")
+        st.markdown("#### Part 1: Multiple Choice Questions")
         for idx, q in enumerate(day_data["listening"]["mcq"]):
             st.write(f"**Q{idx+1}:** {q['q']}")
-            st.radio(f"Đáp án Nghe Q{idx+1}:", q['options'], key=f"l_mcq_{selected_day}_{idx}")
+            st.radio(f"Select option L{idx+1}:", q['options'], key=f"l_mcq_{selected_day}_{idx}")
 
+        st.markdown("#### Part 2: Fill-in-the-blank Questions")
         for idx, q in enumerate(day_data["listening"]["fitb"]):
-            st.write(f"**Fill-in Q{idx+1}:** {q['q']}")
-            st.text_input(f"Nhập câu trả lời Nghe Q{idx+1}:", key=f"l_fitb_{selected_day}_{idx}")
+            st.write(f"**Q{idx+5}:** {q['q']}")
+            st.text_input(f"Enter answer L{idx+5}:", key=f"l_fitb_{selected_day}_{idx}")
 
     # ------------------------------------------
-    # TAB 6: WRITING
+    # TAB 6: WRITING (YÊU CẦU 9)
     # ------------------------------------------
     with t6:
         st.subheader("✍️ C1 Executive Writing Scenario")
-        st.markdown(f"<div class='studio-card'><b>Nhiệm vụ:</b> {day_data['writing']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='studio-card'>{day_data['writing']}</div>", unsafe_allow_html=True)
         
-        user_writer = st.text_area("Nhập bài viết Tiếng Anh của bạn tại đây:", height=200)
-        if st.button("🚀 AI Chấm điểm & Nâng cấp bài viết C1"):
+        user_writer = st.text_area("Write your response in English:", height=220)
+        if st.button("🚀 AI Evaluation & C1 Upgrade Feedback"):
             if not user_writer.strip():
-                st.warning("Vui lòng nhập bài viết trước khi chấm!")
+                st.warning("Please enter your essay before submitting!")
             else:
-                with st.spinner("AI Chuyên gia C1 đang thẩm định..."):
+                with st.spinner("C1 AI Examiner is evaluating your writing..."):
                     prompt = f"""
-                    Chấm bài viết Business English C1:
-                    Đề bài: "{day_data['writing']}"
-                    Bài viết học viên: "{user_writer}"
+                    Evaluate this C1 Business English Writing Task strictly in English:
+                    Task Prompt: "{day_data['writing']}"
+                    Student Submission: "{user_writer}"
 
-                    Yêu cầu đánh giá bằng Tiếng Việt:
-                    1. Điểm Task Achievement, Grammar & C1 Vocabulary (/10).
-                    2. Lỗi ngữ pháp & Từ vựng chưa chuẩn C1.
-                    3. Bản viết lại đẳng cấp C1 Executive (Advanced Rewritten Version).
+                    Provide structured feedback:
+                    1. Band Score (/10) for Task Achievement, Vocabulary, and Grammar.
+                    2. Grammar & Vocabulary Errors with explanations.
+                    3. Executive C1 Rewritten Version (Polished Professional Draft).
                     """
                     res = call_groq_llm(prompt, st.session_state.groq_api_key)
                     if res:
                         st.markdown(f"<div class='studio-card'>{res}</div>", unsafe_allow_html=True)
 
     # ------------------------------------------
-    # TAB 7: SPEAKING
+    # TAB 7: SPEAKING (YÊU CẦU 11)
     # ------------------------------------------
     with t7:
         st.subheader("📊 Executive Speaking Pitch")
-        st.markdown(f"<div class='studio-card'><b>Chủ đề Thuyết trình:</b> {day_data['speaking']}</div>", unsafe_allow_html=True)
-        record_and_evaluate_speech(day_data['speaking'], label=f"speak_pitch_{selected_day}")
+        st.markdown(f"<div class='studio-card'>{day_data['speaking']}</div>", unsafe_allow_html=True)
+        record_and_evaluate_speech(day_data['speaking'], label=f"speak_pitch_{selected_day}", context_info=day_data['speaking'])
 
     # ------------------------------------------
-    # TAB 8: TRANSLATION
+    # TAB 8: TRANSLATION (YÊU CẦU 10)
     # ------------------------------------------
     with t8:
-        st.subheader("🌐 C1 Translation Practice (10 Câu Tiếng Việt → Tiếng Anh)")
-        st.caption("Dịch 10 câu theo chủ đề sang Tiếng Anh. AI sẽ chấm điểm dựa trên Từ vựng C1, Ngữ pháp và Cấu trúc câu:")
+        st.subheader("🌐 C1 Sentence-by-Sentence Translation Practice")
+        st.caption("Translate each Vietnamese sentence to English below. Click evaluate per sentence for instant learning:")
         
-        user_trans_answers = []
         for idx, t_item in enumerate(day_data["translation"]):
-            st.markdown(f"**Câu {idx+1}:** {t_item['vn']}")
-            ans_input = st.text_input(f"Bản dịch câu {idx+1}:", key=f"trans_{selected_day}_{idx}")
-            user_trans_answers.append({"vn": t_item['vn'], "user_en": ans_input, "ref_en": t_item['en']})
+            st.markdown(f"<div class='studio-card'><b>Sentence {t_item['id']}:</b> {t_item['vn']}</div>", unsafe_allow_html=True)
+            u_trans = st.text_input(f"Your Translation for Sentence {t_item['id']}:", key=f"single_trans_{selected_day}_{idx}")
+            
+            if st.button(f"🎯 Evaluate Sentence {t_item['id']}", key=f"btn_trans_{selected_day}_{idx}"):
+                if not u_trans.strip():
+                    st.warning("Please enter translation first!")
+                else:
+                    with st.spinner(f"Evaluating Sentence {t_item['id']}..."):
+                        prompt_single = f"""
+                        Evaluate this single sentence translation from Vietnamese to C1 English:
+                        - Original VN: "{t_item['vn']}"
+                        - Ideal Reference EN: "{t_item['en']}"
+                        - Student Translation: "{u_trans}"
 
-        if st.button("🎯 AI Chấm Điểm Bài Dịch 10 Câu"):
-            if not st.session_state.groq_api_key:
-                st.error("Vui lòng nhập Groq API Key!")
-            else:
-                with st.spinner("AI đang chấm chi tiết 10 câu dịch..."):
-                    prompt_trans = f"""
-                    Chấm bài dịch 10 câu Tiếng Việt -> Tiếng Anh (Level C1 Business English):
-                    Dữ liệu bài làm:
-                    {json.dumps(user_trans_answers, ensure_ascii=False, indent=2)}
-
-                    Hãy đánh giá chi tiết bằng Tiếng Việt:
-                    1. Tổng điểm bài dịch (/10).
-                    2. Nhận xét từng câu (Câu đúng/Chưa chuẩn, Điểm mạnh từ vựng C1).
-                    3. Bảng tổng hợp Gợi ý bản dịch chuẩn C1 chuyên nghiệp nhất.
-                    """
-                    res_trans = call_groq_llm(prompt_trans, st.session_state.groq_api_key)
-                    if res_trans:
-                        st.markdown(f"<div class='studio-card'>{res_trans}</div>", unsafe_allow_html=True)
+                        Provide brief feedback strictly in English:
+                        1. Score (/10)
+                        2. Accuracy & C1 Vocabulary usage
+                        3. Polished C1 Alternative
+                        """
+                        res_single = call_groq_llm(prompt_single, st.session_state.groq_api_key)
+                        if res_single:
+                            st.markdown(f"<div class='studio-card'>{res_single}</div>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
