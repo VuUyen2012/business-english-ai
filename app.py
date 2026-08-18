@@ -85,7 +85,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 # 2. FIXED GROQ API WITH MULTI-MODEL FALLBACK
 # ==========================================
 def query_groq_ai(prompt: str) -> str:
-    """Uses available Groq models with fallbacks to avoid 404 model_not_found errors."""
+    """Uses active Groq models with fallbacks to avoid 400 model_decommissioned or 404 errors."""
     api_key = None
     try:
         if "GROQ_API_KEY" in st.secrets:
@@ -105,12 +105,12 @@ def query_groq_ai(prompt: str) -> str:
         "Content-Type": "application/json"
     }
     
-    # Supported Groq Models Pool to ensure 100% availability
+    # Active Groq Models (Updated to active models only)
     candidate_models = [
+        "llama-3.3-70b-versatile",
         "llama-3.1-8b-instant",
-        "llama3-8b-8192",
-        "llama3-70b-8192",
-        "mixtral-8x7b-32768"
+        "mixtral-8x7b-32768",
+        "gemma2-9b-it"
     ]
     
     for model_name in candidate_models:
@@ -126,8 +126,8 @@ def query_groq_ai(prompt: str) -> str:
             response = requests.post(url, headers=headers, json=payload, timeout=20)
             if response.status_code == 200:
                 return response.json()["choices"][0]["message"]["content"]
-            elif response.status_code == 404:
-                continue # Try next model if 404
+            elif response.status_code in (400, 404):
+                continue # Skip decommissioned/not found models
             else:
                 return f"⚠️ Groq API Error ({response.status_code}): {response.text}"
         except Exception as e:
@@ -358,14 +358,15 @@ def get_day_curriculum(day_num: int):
 # 4. FIXED RECORDING & SPEECH-TO-TEXT COMPONENT
 # ==========================================
 def render_audio_recorder(key_prefix: str):
-    """HTML5 Recorder + Web Speech API with real-time feedback and cross-frame state binding."""
+    """HTML5 Recorder + Web Speech API with real-time feedback and quick clipboard copy."""
     html_code = f"""
     <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1.5px solid #000000; margin-bottom: 10px;">
         <p style="font-weight: bold; margin-bottom: 8px; color: #000000;">🎙️ Interactive Audio Recorder & Real-time Speech-To-Text</p>
-        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+        <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
             <button id="btn_start_{key_prefix}" onclick="startRecording('{key_prefix}')" style="padding: 8px 14px; background: #000000; color: #ffffff; border: none; border-radius: 6px; cursor: pointer;">🎙️ Record Voice</button>
             <button id="btn_stop_{key_prefix}" onclick="stopRecording('{key_prefix}')" style="padding: 8px 14px; background: #c62828; color: #ffffff; border: none; border-radius: 6px; cursor: pointer;" disabled>⏹️ Stop</button>
             <button id="btn_play_{key_prefix}" onclick="playRecording('{key_prefix}')" style="padding: 8px 14px; background: #ffffff; color: #000000; border: 1px solid #000; border-radius: 6px; cursor: pointer;" disabled>🔊 Play Back</button>
+            <button id="btn_copy_{key_prefix}" onclick="copyText('{key_prefix}')" style="padding: 8px 14px; background: #2e7d32; color: #ffffff; border: none; border-radius: 6px; cursor: pointer;">📋 Copy Speech Text</button>
         </div>
         <audio id="audio_player_{key_prefix}" controls style="display: none; width: 100%; margin-top: 8px;"></audio>
         <p style="font-size: 12px; margin-top: 8px; font-weight: bold; color: #000000;">Live Speech Recognition Output:</p>
@@ -424,9 +425,6 @@ def render_audio_recorder(key_prefix: str):
                         const fullText = finalTranscript + interimTranscript;
                         const txtBox = document.getElementById('transcript_' + prefix);
                         txtBox.value = fullText;
-                        
-                        // Sync with parent Streamlit text area if available
-                        window.parent.postMessage({{type: 'speech_transcript', id: prefix, text: fullText}}, '*');
                     }};
                     recognition_{key_prefix}.start();
                 }}
@@ -448,9 +446,22 @@ def render_audio_recorder(key_prefix: str):
             const player = document.getElementById('audio_player_' + prefix);
             player.play();
         }}
+
+        function copyText(prefix) {{
+            const txt = document.getElementById('transcript_' + prefix).value;
+            if(!txt) {{
+                alert("No speech text available to copy yet!");
+                return;
+            }}
+            navigator.clipboard.writeText(txt).then(() => {{
+                alert("Copied transcript to clipboard! Paste it into the evaluation box below.");
+            }}).catch(() => {{
+                alert("Selected and ready. Press Ctrl+C to copy: " + txt);
+            }});
+        }}
     </script>
     """
-    components.html(html_code, height=230)
+    components.html(html_code, height=240)
 
 def render_tts_button(text_to_speak: str, key: str):
     clean_text = text_to_speak.replace("'", "\\'").replace("\n", " ")
@@ -573,9 +584,9 @@ with tabs[1]:
         render_tts_button(excerpt, f"pron_target_{idx}")
         render_audio_recorder(f"pron_{selected_day}_{idx}")
         
-        spoken_input = st.text_area(f"Transcribed Text for AI Evaluation (Excerpt {idx+1}):", key=f"pron_txt_{selected_day}_{idx}", placeholder="Type or paste your spoken text here if needed, or leave blank to evaluate against the target excerpt directly...")
+        spoken_input = st.text_area(f"Transcribed Text for AI Evaluation (Excerpt {idx+1}):", key=f"pron_txt_{selected_day}_{idx}", placeholder="Paste copied speech text here or leave blank to evaluate against target sentence...")
         if st.button(f"🤖 Analyze Stress & Intonation (Excerpt {idx+1})", key=f"btn_pron_ai_{idx}"):
-            eval_text = spoken_input.strip() if spoken_input.strip() else f"User read the sentence: {excerpt}"
+            eval_text = spoken_input.strip() if spoken_input.strip() else f"Direct voice evaluation against target: '{excerpt}'"
             with st.spinner("Analyzing pronunciation via Groq AI..."):
                 prompt = f"Target Excerpt: '{excerpt}'\nUser Speech Record: '{eval_text}'\nEvaluate C1 pronunciation, stress patterns, pitch control, and intonation. Score out of 10 with clear, practical feedback."
                 feedback = query_groq_ai(prompt)
@@ -662,12 +673,12 @@ with tabs[6]:
     st.markdown(curriculum["speaking_prompt"])
     
     render_audio_recorder(f"speaking_pres_{selected_day}")
-    spoken_presentation = st.text_area("Presentation Transcript for AI Evaluation:", key=f"speaking_txt_{selected_day}", placeholder="Type or paste your presentation transcript, or leave blank to evaluate directly...")
+    spoken_presentation = st.text_area("Presentation Transcript for AI Evaluation:", key=f"speaking_txt_{selected_day}", placeholder="Paste copied speech transcript here or leave blank to evaluate speech content directly...")
     
     if st.button("🤖 Grade Executive Presentation via Groq AI"):
         eval_spk = spoken_presentation.strip() if spoken_presentation.strip() else f"User delivered spoken presentation for topic: {curriculum['topic']}"
         with st.spinner("Evaluating presentation via Groq AI..."):
-            prompt = f"Speaking Prompt: {curriculum['speaking_prompt']}\n\nSpeech Content: '{eval_spk}'\n\nGrade for executive level fluency, lexical sophistication, dynamic tone, and structural coherence."
+            prompt = f"Speaking Prompt: {curriculum['speaking_prompt']}\n\nSpeech Content: '{eval_spk}'\n\nGrade for executive level fluency, lexical sophistication, dynamic tone, and structural coherence. Score out of 100 with actionable feedback."
             feedback = query_groq_ai(prompt)
             st.markdown(f"<div class='feedback-correct'><b>AI Presentation Feedback:</b><br>{feedback}</div>", unsafe_allow_html=True)
 
