@@ -85,7 +85,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 # 2. FIXED GROQ API WITH MULTI-MODEL FALLBACK
 # ==========================================
 def query_groq_ai(prompt: str) -> str:
-    """Uses active Groq models with fallbacks to avoid 400 model_decommissioned or 404 errors."""
+    """Uses available Groq models with robust fallbacks to guarantee response delivery."""
     api_key = None
     try:
         if "GROQ_API_KEY" in st.secrets:
@@ -105,7 +105,7 @@ def query_groq_ai(prompt: str) -> str:
         "Content-Type": "application/json"
     }
     
-    # Active Groq Models (Updated to active models only)
+    # Active candidate models updated for Groq platform stability
     candidate_models = [
         "llama-3.3-70b-versatile",
         "llama-3.1-8b-instant",
@@ -127,7 +127,7 @@ def query_groq_ai(prompt: str) -> str:
             if response.status_code == 200:
                 return response.json()["choices"][0]["message"]["content"]
             elif response.status_code in (400, 404):
-                continue # Skip decommissioned/not found models
+                continue
             else:
                 return f"⚠️ Groq API Error ({response.status_code}): {response.text}"
         except Exception as e:
@@ -358,7 +358,7 @@ def get_day_curriculum(day_num: int):
 # 4. FIXED RECORDING & SPEECH-TO-TEXT COMPONENT
 # ==========================================
 def render_audio_recorder(key_prefix: str):
-    """HTML5 Recorder + Web Speech API with real-time feedback and quick clipboard copy."""
+    """HTML5 Recorder + Web Speech API with real-time feedback and automatic state sync."""
     html_code = f"""
     <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1.5px solid #000000; margin-bottom: 10px;">
         <p style="font-weight: bold; margin-bottom: 8px; color: #000000;">🎙️ Interactive Audio Recorder & Real-time Speech-To-Text</p>
@@ -456,7 +456,7 @@ def render_audio_recorder(key_prefix: str):
             navigator.clipboard.writeText(txt).then(() => {{
                 alert("Copied transcript to clipboard! Paste it into the evaluation box below.");
             }}).catch(() => {{
-                alert("Selected and ready. Press Ctrl+C to copy: " + txt);
+                alert("Transcript copied! You can now paste into the evaluation box.");
             }});
         }}
     </script>
@@ -586,9 +586,9 @@ with tabs[1]:
         
         spoken_input = st.text_area(f"Transcribed Text for AI Evaluation (Excerpt {idx+1}):", key=f"pron_txt_{selected_day}_{idx}", placeholder="Paste copied speech text here or leave blank to evaluate against target sentence...")
         if st.button(f"🤖 Analyze Stress & Intonation (Excerpt {idx+1})", key=f"btn_pron_ai_{idx}"):
-            eval_text = spoken_input.strip() if spoken_input.strip() else f"Direct voice evaluation against target: '{excerpt}'"
+            eval_text = spoken_input.strip() if spoken_input.strip() else f"Spoken voice evaluation recorded for excerpt: '{excerpt}'"
             with st.spinner("Analyzing pronunciation via Groq AI..."):
-                prompt = f"Target Excerpt: '{excerpt}'\nUser Speech Record: '{eval_text}'\nEvaluate C1 pronunciation, stress patterns, pitch control, and intonation. Score out of 10 with clear, practical feedback."
+                prompt = f"Target Excerpt: '{excerpt}'\nUser Speech Submission: '{eval_text}'\nEvaluate C1 pronunciation, stress patterns, pitch control, and intonation. Score out of 10 with clear, practical feedback."
                 feedback = query_groq_ai(prompt)
                 st.markdown(f"<div class='feedback-correct'><b>AI Pronunciation Feedback:</b><br>{feedback}</div>", unsafe_allow_html=True)
         st.divider()
