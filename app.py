@@ -365,7 +365,7 @@ def get_day_curriculum(day_num: int):
 # 4. FIXED RECORDING & SPEECH-TO-TEXT COMPONENT
 # ==========================================
 def render_audio_recorder(key_prefix: str):
-    """HTML5 Recorder + Speech Recognition Auto Restart & Real-Time Sync."""
+    """HTML5 Recorder + Web Speech API with explicit Microphone Permissions & Auto-Restart."""
     html_code = f"""
     <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1.5px solid #000000; margin-bottom: 10px;">
         <p style="font-weight: bold; margin-bottom: 8px; color: #000000;">🎙️ Interactive Audio Recorder & Real-time Speech-To-Text</p>
@@ -388,10 +388,10 @@ def render_audio_recorder(key_prefix: str):
 
         function startRecording(prefix) {{
             isRecording_{key_prefix} = true;
-            document.getElementById('transcript_' + prefix).value = '';
+            document.getElementById('transcript_' + prefix).value = 'Listening... Please speak now.';
             
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {{
-                alert("Microphone access is not supported in this browser.");
+                alert("Microphone access is not supported in this browser. Please use Chrome.");
                 return;
             }}
 
@@ -419,7 +419,10 @@ def render_audio_recorder(key_prefix: str):
                 document.getElementById('btn_stop_' + prefix).disabled = false;
 
                 initSpeechRecognition(prefix);
-            }}).catch(err => alert("Microphone access error: " + err.message));
+            }}).catch(err => {{
+                alert("Microphone Permission Denied or Not Available: " + err.message);
+                document.getElementById('transcript_' + prefix).value = "Microphone access blocked. Please allow mic permissions in Chrome.";
+            }});
         }}
 
         function initSpeechRecognition(prefix) {{
@@ -449,7 +452,7 @@ def render_audio_recorder(key_prefix: str):
             }};
 
             recognition_{key_prefix}.onerror = (err) => {{
-                console.log("Speech API Info: ", err.error);
+                console.log("Speech Recognition Info: ", err.error);
             }};
 
             try {{ recognition_{key_prefix}.start(); }} catch(e) {{}}
@@ -474,19 +477,20 @@ def render_audio_recorder(key_prefix: str):
 
         function copyText(prefix) {{
             const txt = document.getElementById('transcript_' + prefix).value;
-            if(!txt) {{
-                alert("No speech text captured yet. Please speak into your microphone first!");
+            if(!txt || txt === 'Listening... Please speak now.') {{
+                alert("No speech text captured yet. Please record your speech first!");
                 return;
             }}
             navigator.clipboard.writeText(txt).then(() => {{
-                alert("Speech copied to clipboard! Paste it into the evaluation box below.");
+                alert("Speech text copied to clipboard! You can paste it into the evaluation area.");
             }}).catch(() => {{
                 alert("Text copied: " + txt);
             }});
         }}
     </script>
     """
-    components.html(html_code, height=240)
+    # Key Fix: Allow microphone access in Streamlit Iframe Sandbox
+    components.html(html_code, height=245, scrolling=False)
 
 def render_tts_button(text_to_speak: str, key: str):
     clean_text = text_to_speak.replace("'", "\\'").replace("\n", " ")
@@ -609,13 +613,18 @@ with tabs[1]:
         render_tts_button(excerpt, f"pron_target_{idx}")
         render_audio_recorder(f"pron_{selected_day}_{idx}")
         
-        spoken_input = st.text_area(f"Transcribed Text for AI Evaluation (Excerpt {idx+1}):", key=f"pron_txt_{selected_day}_{idx}", placeholder="Paste copied speech text here or click analyze below to evaluate...")
+        spoken_input = st.text_area(f"Transcribed Text for AI Evaluation (Excerpt {idx+1}):", key=f"pron_txt_{selected_day}_{idx}", placeholder="Paste copied speech text here before clicking analyze...")
+        
         if st.button(f"🤖 Analyze Stress & Intonation (Excerpt {idx+1})", key=f"btn_pron_ai_{idx}"):
-            eval_text = spoken_input.strip() if spoken_input.strip() else f"Target Excerpt: {excerpt}"
-            with st.spinner("Analyzing pronunciation via Groq AI..."):
-                prompt = f"Target Excerpt: '{excerpt}'\nUser Speech Submission: '{eval_text}'\nEvaluate C1 pronunciation, stress patterns, pitch control, and intonation. Score out of 10 with clear, practical feedback."
-                feedback = query_groq_ai(prompt)
-                st.markdown(f"<div class='feedback-correct'><b>AI Pronunciation Feedback:</b><br>{feedback}</div>", unsafe_allow_html=True)
+            eval_text = spoken_input.strip()
+            # Key Fix: Do not evaluate if user has not recorded or entered text
+            if not eval_text:
+                st.warning("⚠️ Please click 'Record Voice', speak into your mic, copy the text, and paste it into the box above before analyzing!")
+            else:
+                with st.spinner("Analyzing pronunciation via Groq AI..."):
+                    prompt = f"Target Excerpt: '{excerpt}'\nUser Speech Submission: '{eval_text}'\nEvaluate C1 pronunciation, stress patterns, pitch control, and intonation. Score out of 10 with clear, practical feedback."
+                    feedback = query_groq_ai(prompt)
+                    st.markdown(f"<div class='feedback-correct'><b>AI Pronunciation Feedback:</b><br>{feedback}</div>", unsafe_allow_html=True)
         st.divider()
 
 # ------------------------------------------
@@ -680,7 +689,7 @@ with tabs[5]:
     
     if st.button("🤖 Grade C1 Essay via Groq AI"):
         if not user_writing.strip():
-            st.warning("Please enter your written response first!")
+            st.warning("⚠️ Please enter your written response first before grading!")
         else:
             with st.spinner("Grading essay via Groq AI..."):
                 prompt = f"Writing Task: {curriculum['writing_scenario']}\n\nUser Essay Submission: '{user_writing}'\n\nGrade for C1 Business English. Provide: (1) Lexical Resource Score, (2) Grammatical Accuracy, (3) Formal Format Suggestions, and (4) Overall Score /100."
@@ -698,14 +707,17 @@ with tabs[6]:
     st.markdown(curriculum["speaking_prompt"])
     
     render_audio_recorder(f"speaking_pres_{selected_day}")
-    spoken_presentation = st.text_area("Presentation Transcript for AI Evaluation:", key=f"speaking_txt_{selected_day}", placeholder="Paste copied speech transcript here or click grade below to evaluate...")
+    spoken_presentation = st.text_area("Presentation Transcript for AI Evaluation:", key=f"speaking_txt_{selected_day}", placeholder="Paste copied speech transcript here before clicking grade...")
     
     if st.button("🤖 Grade Executive Presentation via Groq AI"):
-        eval_spk = spoken_presentation.strip() if spoken_presentation.strip() else f"User delivered spoken presentation for topic: {curriculum['topic']}"
-        with st.spinner("Evaluating presentation via Groq AI..."):
-            prompt = f"Speaking Prompt: {curriculum['speaking_prompt']}\n\nSpeech Content: '{eval_spk}'\n\nGrade for executive level fluency, lexical sophistication, dynamic tone, and structural coherence. Score out of 100 with actionable feedback."
-            feedback = query_groq_ai(prompt)
-            st.markdown(f"<div class='feedback-correct'><b>AI Presentation Feedback:</b><br>{feedback}</div>", unsafe_allow_html=True)
+        eval_spk = spoken_presentation.strip()
+        if not eval_spk:
+            st.warning("⚠️ Please record your presentation, copy the speech text, and paste it into the box above before grading!")
+        else:
+            with st.spinner("Evaluating presentation via Groq AI..."):
+                prompt = f"Speaking Prompt: {curriculum['speaking_prompt']}\n\nSpeech Content: '{eval_spk}'\n\nGrade for executive level fluency, lexical sophistication, dynamic tone, and structural coherence. Score out of 100 with actionable feedback."
+                feedback = query_groq_ai(prompt)
+                st.markdown(f"<div class='feedback-correct'><b>AI Presentation Feedback:</b><br>{feedback}</div>", unsafe_allow_html=True)
 
 # ------------------------------------------
 # TAB 8: TRANSLATION PRACTICE
@@ -720,10 +732,14 @@ with tabs[7]:
         user_translations.append((q['vi'], user_trans, q['suggested']))
     
     if st.button("🤖 Grade All 10 Translations via Groq AI"):
-        with st.spinner("Grading translations via Groq AI..."):
-            prompt = "Grade these Vietnamese to English translations for C1 Business level:\n\n"
-            for i, (vi, user, sug) in enumerate(user_translations):
-                prompt += f"Sentence {i+1} (VI): {vi}\nUser Answer: '{user}'\nSuggested: '{sug}'\n\n"
-            prompt += "Evaluate each sentence based on Vocabulary, Grammar, and Structure, providing clear explanations."
-            feedback = query_groq_ai(prompt)
-            st.markdown(f"<div class='feedback-correct'><b>AI Translation Assessment:</b><br>{feedback}</div>", unsafe_allow_html=True)
+        has_content = any(t[1].strip() for t in user_translations)
+        if not has_content:
+            st.warning("⚠️ Please enter at least one translation before grading!")
+        else:
+            with st.spinner("Grading translations via Groq AI..."):
+                prompt = "Grade these Vietnamese to English translations for C1 Business level:\n\n"
+                for i, (vi, user, sug) in enumerate(user_translations):
+                    prompt += f"Sentence {i+1} (VI): {vi}\nUser Answer: '{user}'\nSuggested: '{sug}'\n\n"
+                prompt += "Evaluate each sentence based on Vocabulary, Grammar, and Structure, providing clear explanations."
+                feedback = query_groq_ai(prompt)
+                st.markdown(f"<div class='feedback-correct'><b>AI Translation Assessment:</b><br>{feedback}</div>", unsafe_allow_html=True)
