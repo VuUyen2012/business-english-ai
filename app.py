@@ -562,7 +562,7 @@ checked_states = st.session_state.user_progress["checked_states"][day_key]
 
 def render_question_feedback(q_id, user_ans, correct_ans, explanation):
     if checked_states.get(q_id, False):
-        if user_ans and str(user_ans).strip().lower() == str(correct_ans).strip().lower():
+        if user_ans is not None and str(user_ans).strip().lower() == str(correct_ans).strip().lower():
             st.markdown(
                 f"<div class='feedback-card-correct'>"
                 f"<b>✅ Correct Answer: {correct_ans}</b><br>"
@@ -573,7 +573,7 @@ def render_question_feedback(q_id, user_ans, correct_ans, explanation):
         else:
             st.markdown(
                 f"<div class='feedback-card-incorrect'>"
-                f"<b>❌ Incorrect Answer.</b> Your submission: <b>{user_ans if user_ans else '(Empty)'}</b><br>"
+                f"<b>❌ Incorrect Answer.</b> Your submission: <b>{user_ans if user_ans else '(Not Selected)'}</b><br>"
                 f"<b>Correct Answer:</b> {correct_ans}<br>"
                 f"<i>Detailed Explanation: {explanation}</i>"
                 f"</div>",
@@ -658,13 +658,15 @@ with tabs[1]:
         saved_val = saved_answers.get(q_key, None)
         
         if q["type"] == "mcq":
-            idx_val = q["options"].index(saved_val) if (saved_val in q["options"]) else None
+            # Đảm bảo index chuẩn xác là None nếu người dùng chưa tương tác
+            idx_val = q["options"].index(saved_val) if (saved_val and saved_val in q["options"]) else None
             u_ans = st.radio("Choose:", q["options"], key=f"gram_mcq_{selected_day}_{idx}", index=idx_val)
             if u_ans is not None:
                 saved_answers[q_key] = u_ans
         else:
             u_ans = st.text_input("Fill in blank:", value=saved_val if saved_val else "", key=f"gram_fill_{selected_day}_{idx}")
-            saved_answers[q_key] = u_ans
+            if u_ans:
+                saved_answers[q_key] = u_ans
         
         if st.button(f"Check Grammar Q{idx+1}", key=f"btn_gram_{selected_day}_{idx}"):
             checked_states[q_key] = True
@@ -686,13 +688,14 @@ with tabs[2]:
         saved_val = saved_answers.get(q_key, None)
         
         if q["type"] == "mcq":
-            idx_val = q["options"].index(saved_val) if (saved_val in q["options"]) else None
+            idx_val = q["options"].index(saved_val) if (saved_val and saved_val in q["options"]) else None
             u_ans = st.radio("Select:", q["options"], key=f"read_opt_{selected_day}_{idx}", index=idx_val)
             if u_ans is not None:
                 saved_answers[q_key] = u_ans
         else:
             u_ans = st.text_input("Your answer:", value=saved_val if saved_val else "", key=f"read_txt_{selected_day}_{idx}")
-            saved_answers[q_key] = u_ans
+            if u_ans:
+                saved_answers[q_key] = u_ans
             
         if st.button(f"Check Reading Q{idx+1}", key=f"btn_read_{selected_day}_{idx}"):
             checked_states[q_key] = True
@@ -715,13 +718,14 @@ with tabs[3]:
         saved_val = saved_answers.get(q_key, None)
         
         if q["type"] == "mcq":
-            idx_val = q["options"].index(saved_val) if (saved_val in q["options"]) else None
+            idx_val = q["options"].index(saved_val) if (saved_val and saved_val in q["options"]) else None
             u_ans = st.radio("Select option:", q["options"], key=f"listen_opt_{selected_day}_{idx}", index=idx_val)
             if u_ans is not None:
                 saved_answers[q_key] = u_ans
         else:
             u_ans = st.text_input("Answer:", value=saved_val if saved_val else "", key=f"listen_txt_{selected_day}_{idx}")
-            saved_answers[q_key] = u_ans
+            if u_ans:
+                saved_answers[q_key] = u_ans
             
         if st.button(f"Check Listening Q{idx+1}", key=f"btn_listen_{selected_day}_{idx}"):
             checked_states[q_key] = True
