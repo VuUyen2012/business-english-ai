@@ -6,7 +6,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. STREAMLIT CONFIG & PERFECT RADIO CSS
+# 1. STREAMLIT CONFIG & ABSOLUTE RADIO FIX
 # ==========================================
 st.set_page_config(
     page_title="B2 to C1 English Mastery Studio",
@@ -34,16 +34,16 @@ CUSTOM_CSS = """
     }
 
     /* ==========================================
-       KHẮC PHỤC TRIỆT ĐỂ LỖI RADIO BUTTON (MCQ)
+       TRIỆT TIÊU TOÀN BỘ MÀU ĐỎ/HỒNG CỦA STREAMLIT RADIO
        ========================================== */
 
-    /* 1. Khung chứa từng phương án: Nền trắng, chữ đen, viền đen */
+    /* Khung ngoài của từng option */
     div[data-testid="stRadio"] div[role="radiogroup"] > label {
         background-color: #ffffff !important;
         color: #000000 !important;
         border: 1.5px solid #000000 !important;
         border-radius: 8px !important;
-        padding: 10px 16px !important;
+        padding: 8px 14px !important;
         margin-bottom: 8px !important;
         display: flex !important;
         align-items: center !important;
@@ -55,7 +55,7 @@ CUSTOM_CSS = """
         background-color: #f5f5f5 !important;
     }
 
-    /* Ép buộc chữ bên trong phương án luôn rõ ràng màu đen */
+    /* Đảm bảo chữ phương án màu đen rõ ràng, không bị ô đen */
     div[data-testid="stRadio"] div[role="radiogroup"] label p,
     div[data-testid="stRadio"] div[role="radiogroup"] label span {
         color: #000000 !important;
@@ -65,42 +65,35 @@ CUSTOM_CSS = """
         margin: 0 !important;
     }
 
-    /* 2. Nút tròn Radio khi CHƯA CHỌN: Viền đen, nền trắng tuyệt đối */
-    div[data-testid="stRadio"] div[role="radiogroup"] label div[data-baseweb="radio"] {
-        background-color: #ffffff !important;
-    }
-
-    div[data-testid="stRadio"] div[role="radiogroup"] label div[data-baseweb="radio"] > div {
-        background-color: #ffffff !important;
-        border: 2px solid #000000 !important;
-        box-shadow: none !important;
-    }
-
-    /* Tắt toàn bộ hiệu ứng vòng đỏ / hồng của Streamlit khi hover hoặc focus */
-    div[data-testid="stRadio"] div[role="radiogroup"] label div[data-baseweb="radio"] > div::after,
-    div[data-testid="stRadio"] div[role="radiogroup"] label div[data-baseweb="radio"] > div::before {
-        display: none !important;
-    }
-
-    /* 3. Nút tròn Radio KHI ĐÃ CHỌN (Checked): Xuất hiện chấm đen chuẩn */
-    div[data-testid="stRadio"] div[role="radiogroup"] label input:checked + div {
-        background-color: #000000 !important;
+    /* Ghi đè toàn bộ màu nền/viền đỏ/hồng của BaseWeb Radio */
+    div[data-baseweb="radio"] div {
         border-color: #000000 !important;
-        box-shadow: inset 0 0 0 3px #ffffff !important; /* Tạo chấm tròn đen có nhân trắng hoặc ngược lại */
     }
 
+    /* Khi radio ĐÃ CHỌN: Đổi màu chấm từ Đỏ/Hồng sang ĐEN hoàn toàn */
+    div[data-baseweb="radio"] input:checked + div,
     div[data-testid="stRadio"] div[role="radiogroup"] label[aria-checked="true"] div[data-baseweb="radio"] > div {
         background-color: #000000 !important;
         border-color: #000000 !important;
         box-shadow: inset 0 0 0 3px #ffffff !important;
     }
 
-    /* Triệt tiêu hoàn toàn màu primary red/pink của Streamlit BaseWeb */
-    div[data-baseweb="radio"] * {
+    /* Khi radio CHƯA CHỌN: Nền trắng, viền đen */
+    div[data-baseweb="radio"] input:not(:checked) + div {
+        background-color: #ffffff !important;
         border-color: #000000 !important;
+        box-shadow: none !important;
     }
 
-    /* Style cho Nút bấm Check Answer */
+    /* Xóa hoàn toàn hào quang/vòng màu đỏ hồng khi hover hoặc focus vào radio */
+    div[data-baseweb="radio"] *::before,
+    div[data-baseweb="radio"] *::after {
+        background-color: transparent !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
+    }
+
+    /* Style Nút Check Answer */
     .stButton > button {
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -118,7 +111,7 @@ CUSTOM_CSS = """
         border-color: #000000 !important;
     }
 
-    /* Card kết quả */
+    /* Thẻ Kết quả Feedback */
     .feedback-card-correct {
         background-color: #ffffff !important;
         border: 1.5px solid #2e7d32 !important;
@@ -200,7 +193,6 @@ if "completed_days" not in st.session_state.user_progress:
 # 3. GROQ API KEY & DYNAMIC AI EVALUATOR
 # ==========================================
 def query_groq_ai(prompt: str, fallback_ref: str = "") -> str:
-    """Queries Groq API with dynamic fallback tailored to the target reference sentence."""
     api_key = None
     try:
         if "GROQ_API_KEY" in st.secrets:
@@ -278,7 +270,8 @@ C1_VOCAB_MASTER = [
     {"word": "Stagnation", "def": "A prolonged period of little or no growth in business activity or economic output.", "syn": "Inertia / Slump", "ex": "Innovative digital solutions helped overcome domestic market stagnation."}
 ]
 
-def shuffle_options(opts, seed_key):
+def get_fixed_options(opts, seed_key):
+    """Giữ nguyên thứ tự options cố định theo seed để không bị nhảy lung tung làm lỗi radio"""
     shuffled = opts.copy()
     rnd = random.Random(seed_key)
     rnd.shuffle(shuffled)
@@ -302,7 +295,7 @@ def get_curriculum(day_num: int):
         {"q": "Which term measures long-term commercial feasibility and strategic success?", "options": ["Contingency", "Viability", "Mitigation", "Consolidation"], "ans": "Viability", "exp": "'Viability' evaluates whether a plan is capable of enduring profitability."}
     ]
     for idx, g in enumerate(g1_questions):
-        g["options"] = shuffle_options(g["options"], f"g1_{day_num}_{idx}")
+        g["options"] = get_fixed_options(g["options"], f"g1_{day_num}_{idx}")
 
     g2_questions = [
         {"q": "1. The board established a robust ________ plan to mitigate supply disruptions.", "ans": "contingency", "exp": "'Contingency' fits the context of emergency backup operational planning."},
@@ -331,8 +324,8 @@ def get_curriculum(day_num: int):
     grammar_qs = [
         {"type": "mcq", "q": "Q1: Seldom ________ such rapid market volatility in executive governance.", "options": ["we witnessed", "have we witnessed", "we have witnessed", "did we witnessed"], "ans": "have we witnessed", "exp": "Inversion rule: Negative adverb 'Seldom' requires Auxiliary verb + Subject + Main verb."},
         {"type": "mcq", "q": "Q2: It is essential that the Director ________ the compliance report immediately.", "options": ["submits", "submitted", "submit", "will submit"], "ans": "submit", "exp": "Subjunctive rule: 'It is essential that + subject + base verb'."},
-        {"type": "mcq", "q": "Q3: No sooner had the merger concluded ________ auditors flagged liabilities.", "options": ["when", "than", "then", "that"], "ans": "than", "exp": "Inversion pair rule: 'No sooner... than'."},
-        {"type": "mcq", "q": "Q4: Under no circumstances ________ operational safety protocols be bypassed.", "options": ["must", "employees should", "should", "will"], "ans": "should", "exp": "Inversion following 'Under no circumstances' requires immediate auxiliary verb placement."},
+        {"type": "mcq", "q": "Q3: No sooner had the merger concluded ________ auditors flagged liabilities.", "options": ["then", "than", "when", "that"], "ans": "than", "exp": "Inversion pair rule: 'No sooner... than'."},
+        {"type": "mcq", "q": "Q4: Under no circumstances ________ operational safety protocols be bypassed.", "options": ["should", "employees should", "must", "will"], "ans": "should", "exp": "Inversion following 'Under no circumstances' requires immediate auxiliary verb placement."},
         {"type": "mcq", "q": "Q5: The board insisted that every manager ________ a quarterly risk audit.", "options": ["conducts", "conduct", "conducted", "is conducting"], "ans": "conduct", "exp": "Subjunctive mood after 'insisted that' uses bare infinitive 'conduct'."},
         {"type": "fill", "q": "Q6: Complete with inverted form of 'Little / know':\nLittle ________ the board know about the hidden corporate liabilities.", "ans": "did", "exp": "Inversion past simple rule: 'Little did + subject + verb'."},
         {"type": "fill", "q": "Q7: Complete the subjunctive verb:\nIt is imperative that every legal contract ________ (be) validated by counsel.", "ans": "be", "exp": "Subjunctive form of 'to be' is always 'be'."},
@@ -342,7 +335,7 @@ def get_curriculum(day_num: int):
     ]
     for idx, g in enumerate(grammar_qs):
         if g["type"] == "mcq":
-            g["options"] = shuffle_options(g["options"], f"gram_{day_num}_{idx}")
+            g["options"] = get_fixed_options(g["options"], f"gram_{day_num}_{idx}")
 
     reading_paragraphs = [
         f"In the contemporary landscape of global enterprise, mastering the nuances of {topic.lower()} has rapidly transitioned from a conventional competitive advantage to an absolute operational imperative. Organizations expanding across multinational jurisdictions consistently confront unprecedented market volatility, which in turn demands immediate, highly calculated interventions.",
@@ -369,7 +362,7 @@ def get_curriculum(day_num: int):
     ]
     for idx, g in enumerate(reading_qs):
         if g["type"] == "mcq":
-            g["options"] = shuffle_options(g["options"], f"read_{day_num}_{idx}")
+            g["options"] = get_fixed_options(g["options"], f"read_{day_num}_{idx}")
 
     listening_paragraphs = [
         f"Good morning, esteemed members of the Executive Board. Today's strategic briefing will focus exclusively on our key corporate directives regarding {topic.lower()}. As we enter the next fiscal quarter, establishing full operational alignment across all divisions is vital to securing our strategic goals.",
@@ -392,7 +385,7 @@ def get_curriculum(day_num: int):
     ]
     for idx, g in enumerate(listening_qs):
         if g["type"] == "mcq":
-            g["options"] = shuffle_options(g["options"], f"listen_{day_num}_{idx}")
+            g["options"] = get_fixed_options(g["options"], f"listen_{day_num}_{idx}")
 
     writing_scenario = f"""### ✍️ Detailed Executive Memorandum Task
 
@@ -585,7 +578,7 @@ if day_key not in st.session_state.user_progress["checked_states"]:
 saved_answers = st.session_state.user_progress["saved_answers"][day_key]
 checked_states = st.session_state.user_progress["checked_states"][day_key]
 
-# CHỈ HIỂN THỊ KẾT QUẢ KHI NGƯỜI DÙNG ĐÃ BẤM CHỌN VÀ BẤM NÚT "CHECK"
+# HÀM HIỂN THỊ FEEDBACK CHỈ KHI ĐÃ BẤM NÚT CHECK
 def render_question_feedback(q_id, user_ans, correct_ans, explanation):
     if checked_states.get(q_id, False):
         if user_ans is not None and str(user_ans).strip().lower() == str(correct_ans).strip().lower():
@@ -647,6 +640,7 @@ with tabs[0]:
         saved_val = saved_answers.get(q_key, None)
         idx_val = q["options"].index(saved_val) if (saved_val is not None and saved_val in q["options"]) else None
         
+        # SỬA LỖI: Thêm index=index_val chuẩn xác để mặc định luôn là MÀU TRẮNG chưa chọn
         u_ans = st.radio("Choose:", q["options"], key=f"g1_opt_{selected_day}_{idx}", index=idx_val)
         if u_ans is not None:
             saved_answers[q_key] = u_ans
@@ -685,6 +679,7 @@ with tabs[1]:
         
         if q["type"] == "mcq":
             idx_val = q["options"].index(saved_val) if (saved_val is not None and saved_val in q["options"]) else None
+            # SỬA LỖI TRỰC TIẾP TẠI ĐÂY: Truyền index=idx_val (None nếu chưa chọn)
             u_ans = st.radio("Choose:", q["options"], key=f"gram_mcq_{selected_day}_{idx}", index=idx_val)
             if u_ans is not None:
                 saved_answers[q_key] = u_ans
