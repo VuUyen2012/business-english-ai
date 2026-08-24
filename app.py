@@ -870,3 +870,73 @@ with tabs[6]:
 
     if "all_trans_feedback" in checked_states:
         st.markdown(f"<div class='feedback-card-correct'><b>Full 10-Sentence AI Evaluation Report:</b><br><br>{checked_states['all_trans_feedback']}</div>", unsafe_allow_html=True)
+        import streamlit as st
+
+st.set_page_config(page_title="Grammar Practice Test", layout="wide")
+
+st.title("📝 Grammar Practice Test (10 Questions)")
+
+# Dữ liệu 10 câu hỏi
+questions = [
+    {
+        "id": 1,
+        "question": "Q1: Seldom _________ such rapid market volatility in executive governance.",
+        "options": [
+            "have we witnessed",
+            "we witnessed",
+            "we have witnessed",
+            "did we witnessed"
+        ],
+        "answer": "have we witnessed",
+        "explanation": "Đảo ngữ với trạng từ phủ định 'Seldom' đứng đầu câu: Seldom + trợ động từ + S + V."
+    },
+    {
+        "id": 2,
+        "question": "Q2: It is essential that the Director _________ the compliance report immediately.",
+        "options": [
+            "submits",
+            "will submit",
+            "submit",
+            "submitted"
+        ],
+        "answer": "submit",
+        "explanation": "Cấu trúc giả định (Subjunctive Mood): It is essential that + S + V(nguyên thể không chia)."
+    }
+]
+
+# Thêm 8 câu hỏi khác tùy chọn vào danh sách trên nếu cần...
+
+# Khởi tạo session state lưu vết kết quả nếu chưa có
+if "checked_answers" not in st.session_state:
+    st.session_state.checked_answers = {}
+
+for q in questions:
+    q_id = q["id"]
+    st.subheader(q["question"])
+    
+    # Đặt index=None để radio button mặc định KHÔNG chọn phương án nào
+    user_choice = st.radio(
+        "Choose:",
+        q["options"],
+        key=f"radio_{q_id}",
+        index=None
+    )
+    
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if st.button(f"Check Grammar Q{q_id}", key=f"btn_{q_id}"):
+            if user_choice is None:
+                st.warning("Vui lòng chọn 1 đáp án trước khi kiểm tra!")
+            else:
+                st.session_state.checked_answers[q_id] = user_choice
+
+    # CHỈ HIỂN THỊ MÀU & KẾT QUẢ KHI NGƯỜI DÙNG ĐÃ BẤM CHECK
+    if q_id in st.session_state.checked_answers:
+        selected = st.session_state.checked_answers[q_id]
+        if selected == q["answer"]:
+            st.success(f"🎉 Chính xác! Đáp án đúng là: **{q['answer']}**")
+        else:
+            st.error(f"❌ Sai rồi! Bạn chọn '{selected}'. Đáp án đúng phải là: **{q['answer']}**")
+        st.info(f"💡 **Giải thích:** {q['explanation']}")
+        
+    st.divider()
