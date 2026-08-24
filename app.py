@@ -40,32 +40,34 @@ CUSTOM_CSS = """
     }
 
     /* ==========================================
-       FIX TRIỆT ĐỂ RADIO BUTTONS (MULTIPLE CHOICE)
-       - 4 phương án chữ đen, nền trắng
-       - Nút tròn viền đen khi chưa chọn
-       - Chỉ đổi màu khi NGƯỜI DÙNG TÍCH CHỌN
+       FIX TRIỆT ĐỂ MÀU ĐỎ/HỒNG RADIO BUTTONS (ALL MULTIPLE CHOICE)
+       - 4 phương án chữ đen, nền trắng.
+       - Nút tròn viền đen, nền trắng khi chưa chọn.
+       - Khi TÍCH CHỌN: Hiển thị chấm ĐEN, không đỏ/hồng.
        ========================================== */
     
-    /* Khối chứa từng phương án */
+    /* 1. Khối bao ngoài của mỗi phương án */
     div[data-testid="stRadio"] div[role="radiogroup"] > label {
         background-color: #ffffff !important;
         color: #000000 !important;
-        border: 1px solid #d0d0d0 !important;
+        border: 1.5px solid #000000 !important;
         border-radius: 8px !important;
         padding: 8px 14px !important;
-        margin-bottom: 6px !important;
+        margin-bottom: 8px !important;
         display: flex !important;
         align-items: center !important;
         transition: all 0.2s ease-in-out !important;
         cursor: pointer !important;
+        box-shadow: none !important;
     }
 
+    /* Hover phương án */
     div[data-testid="stRadio"] div[role="radiogroup"] > label:hover {
+        background-color: #f2f2f2 !important;
         border-color: #000000 !important;
-        background-color: #f9f9f9 !important;
     }
 
-    /* Chữ hiển thị phương án */
+    /* Chữ phương án */
     div[data-testid="stRadio"] div[role="radiogroup"] label p {
         color: #000000 !important;
         font-weight: 500 !important;
@@ -73,18 +75,33 @@ CUSTOM_CSS = """
         margin: 0 !important;
     }
 
-    /* Nút tròn bên ngoài khi chưa chọn (Chấm viền đen, nền trắng) */
+    /* 2. Vòng tròn ngoài của Radio Button (Ghi đè triệt để BaseWeb Radio) */
+    div[data-testid="stRadio"] div[role="radiogroup"] label div[data-baseweb="radio"] > div:first-child,
     div[data-testid="stRadio"] div[role="radiogroup"] label > div:first-child {
         background-color: #ffffff !important;
         border: 2px solid #000000 !important;
-        border-radius: 50% !important;
+        box-shadow: none !important;
     }
 
-    /* Điểm tròn bên trong khi ĐÃ ĐƯỢC CHỌN (Tích chọn mới sáng) */
-    div[data-testid="stRadio"] div[role="radiogroup"] input:checked + div {
+    /* 3. Vòng tròn bên trong / Trạng thái ĐƯỢC CHỌN (CHECKED / ACTIVE) */
+    div[data-testid="stRadio"] div[role="radiogroup"] input:checked + div,
+    div[data-testid="stRadio"] div[role="radiogroup"] label[aria-checked="true"] div[data-baseweb="radio"] > div:first-child,
+    div[data-testid="stRadio"] div[role="radiogroup"] label div[aria-checked="true"] {
         background-color: #000000 !important;
         border-color: #000000 !important;
-        box-shadow: inset 0 0 0 3px #ffffff !important;
+        box-shadow: inset 0 0 0 3px #ffffff !important; /* Tạo nhụy trắng ở giữa chấm đen */
+    }
+
+    /* Triệt tiêu hoàn toàn viền/chấm đỏ mặc định của Streamlit */
+    div[data-testid="stRadio"] div[role="radiogroup"] input:checked + div > div,
+    div[data-testid="stRadio"] div[role="radiogroup"] label > div > div {
+        background-color: #000000 !important;
+    }
+
+    /* Focus ring (khi bấm vào không bị viền đỏ) */
+    div[data-testid="stRadio"] div[role="radiogroup"] label:focus-within {
+        border-color: #000000 !important;
+        box-shadow: 0 0 0 1px #000000 !important;
     }
 
     .stButton > button {
@@ -638,7 +655,7 @@ with tabs[0]:
         saved_val = saved_answers.get(q_key, None)
         idx_val = q["options"].index(saved_val) if (saved_val is not None and saved_val in q["options"]) else None
         
-        u_ans = st.radio("Select option:", q["options"], key=f"g1_opt_{selected_day}_{idx}", index=idx_val)
+        u_ans = st.radio("Choose:", q["options"], key=f"g1_opt_{selected_day}_{idx}", index=idx_val)
         if u_ans is not None:
             saved_answers[q_key] = u_ans
         
@@ -675,7 +692,6 @@ with tabs[1]:
         saved_val = saved_answers.get(q_key, None)
         
         if q["type"] == "mcq":
-            # Đảm bảo index chuẩn xác là None nếu người dùng chưa tương tác chọn phương án
             idx_val = q["options"].index(saved_val) if (saved_val is not None and saved_val in q["options"]) else None
             u_ans = st.radio("Choose:", q["options"], key=f"gram_mcq_{selected_day}_{idx}", index=idx_val)
             if u_ans is not None:
@@ -706,7 +722,7 @@ with tabs[2]:
         
         if q["type"] == "mcq":
             idx_val = q["options"].index(saved_val) if (saved_val is not None and saved_val in q["options"]) else None
-            u_ans = st.radio("Select:", q["options"], key=f"read_opt_{selected_day}_{idx}", index=idx_val)
+            u_ans = st.radio("Choose:", q["options"], key=f"read_opt_{selected_day}_{idx}", index=idx_val)
             if u_ans is not None:
                 saved_answers[q_key] = u_ans
         else:
@@ -736,7 +752,7 @@ with tabs[3]:
         
         if q["type"] == "mcq":
             idx_val = q["options"].index(saved_val) if (saved_val is not None and saved_val in q["options"]) else None
-            u_ans = st.radio("Select option:", q["options"], key=f"listen_opt_{selected_day}_{idx}", index=idx_val)
+            u_ans = st.radio("Choose:", q["options"], key=f"listen_opt_{selected_day}_{idx}", index=idx_val)
             if u_ans is not None:
                 saved_answers[q_key] = u_ans
         else:
