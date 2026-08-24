@@ -6,7 +6,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. STREAMLIT CONFIG & GOOGLE STUDIO CSS
+# 1. STREAMLIT CONFIG & PERFECT RADIO CSS
 # ==========================================
 st.set_page_config(
     page_title="B2 to C1 English Mastery Studio",
@@ -17,6 +17,7 @@ st.set_page_config(
 
 CUSTOM_CSS = """
 <style>
+    /* Nền ứng dụng màu hồng nhạt, chữ đen */
     .stApp, [data-testid="stAppViewContainer"] {
         background-color: #fff5f8 !important;
         color: #000000 !important;
@@ -32,78 +33,74 @@ CUSTOM_CSS = """
         border-right: 1.5px solid #000000 !important;
     }
 
-    div[data-baseweb="select"] > div, input, textarea, select {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        border: 1.5px solid #000000 !important;
-        border-radius: 8px !important;
-    }
-
     /* ==========================================
-       FIX TRIỆT ĐỂ MÀU ĐỎ/HỒNG RADIO BUTTONS (ALL MULTIPLE CHOICE)
-       - 4 phương án chữ đen, nền trắng.
-       - Nút tròn viền đen, nền trắng khi chưa chọn.
-       - Khi TÍCH CHỌN: Hiển thị chấm ĐEN, không đỏ/hồng.
+       KHẮC PHỤC TRIỆT ĐỂ LỖI RADIO BUTTON (MCQ)
        ========================================== */
-    
-    /* 1. Khối bao ngoài của mỗi phương án */
+
+    /* 1. Khung chứa từng phương án: Nền trắng, chữ đen, viền đen */
     div[data-testid="stRadio"] div[role="radiogroup"] > label {
         background-color: #ffffff !important;
         color: #000000 !important;
         border: 1.5px solid #000000 !important;
         border-radius: 8px !important;
-        padding: 8px 14px !important;
+        padding: 10px 16px !important;
         margin-bottom: 8px !important;
         display: flex !important;
         align-items: center !important;
-        transition: all 0.2s ease-in-out !important;
         cursor: pointer !important;
         box-shadow: none !important;
     }
 
-    /* Hover phương án */
     div[data-testid="stRadio"] div[role="radiogroup"] > label:hover {
-        background-color: #f2f2f2 !important;
-        border-color: #000000 !important;
+        background-color: #f5f5f5 !important;
     }
 
-    /* Chữ phương án */
-    div[data-testid="stRadio"] div[role="radiogroup"] label p {
+    /* Ép buộc chữ bên trong phương án luôn rõ ràng màu đen */
+    div[data-testid="stRadio"] div[role="radiogroup"] label p,
+    div[data-testid="stRadio"] div[role="radiogroup"] label span {
         color: #000000 !important;
+        background-color: transparent !important;
         font-weight: 500 !important;
         font-size: 15px !important;
         margin: 0 !important;
     }
 
-    /* 2. Vòng tròn ngoài của Radio Button (Ghi đè triệt để BaseWeb Radio) */
-    div[data-testid="stRadio"] div[role="radiogroup"] label div[data-baseweb="radio"] > div:first-child,
-    div[data-testid="stRadio"] div[role="radiogroup"] label > div:first-child {
+    /* 2. Nút tròn Radio khi CHƯA CHỌN: Viền đen, nền trắng tuyệt đối */
+    div[data-testid="stRadio"] div[role="radiogroup"] label div[data-baseweb="radio"] {
+        background-color: #ffffff !important;
+    }
+
+    div[data-testid="stRadio"] div[role="radiogroup"] label div[data-baseweb="radio"] > div {
         background-color: #ffffff !important;
         border: 2px solid #000000 !important;
         box-shadow: none !important;
     }
 
-    /* 3. Vòng tròn bên trong / Trạng thái ĐƯỢC CHỌN (CHECKED / ACTIVE) */
-    div[data-testid="stRadio"] div[role="radiogroup"] input:checked + div,
-    div[data-testid="stRadio"] div[role="radiogroup"] label[aria-checked="true"] div[data-baseweb="radio"] > div:first-child,
-    div[data-testid="stRadio"] div[role="radiogroup"] label div[aria-checked="true"] {
+    /* Tắt toàn bộ hiệu ứng vòng đỏ / hồng của Streamlit khi hover hoặc focus */
+    div[data-testid="stRadio"] div[role="radiogroup"] label div[data-baseweb="radio"] > div::after,
+    div[data-testid="stRadio"] div[role="radiogroup"] label div[data-baseweb="radio"] > div::before {
+        display: none !important;
+    }
+
+    /* 3. Nút tròn Radio KHI ĐÃ CHỌN (Checked): Xuất hiện chấm đen chuẩn */
+    div[data-testid="stRadio"] div[role="radiogroup"] label input:checked + div {
         background-color: #000000 !important;
         border-color: #000000 !important;
-        box-shadow: inset 0 0 0 3px #ffffff !important; /* Tạo nhụy trắng ở giữa chấm đen */
+        box-shadow: inset 0 0 0 3px #ffffff !important; /* Tạo chấm tròn đen có nhân trắng hoặc ngược lại */
     }
 
-    /* Triệt tiêu hoàn toàn viền/chấm đỏ mặc định của Streamlit */
-    div[data-testid="stRadio"] div[role="radiogroup"] input:checked + div > div,
-    div[data-testid="stRadio"] div[role="radiogroup"] label > div > div {
+    div[data-testid="stRadio"] div[role="radiogroup"] label[aria-checked="true"] div[data-baseweb="radio"] > div {
         background-color: #000000 !important;
-    }
-
-    /* Focus ring (khi bấm vào không bị viền đỏ) */
-    div[data-testid="stRadio"] div[role="radiogroup"] label:focus-within {
         border-color: #000000 !important;
-        box-shadow: 0 0 0 1px #000000 !important;
+        box-shadow: inset 0 0 0 3px #ffffff !important;
     }
 
+    /* Triệt tiêu hoàn toàn màu primary red/pink của Streamlit BaseWeb */
+    div[data-baseweb="radio"] * {
+        border-color: #000000 !important;
+    }
+
+    /* Style cho Nút bấm Check Answer */
     .stButton > button {
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -112,6 +109,7 @@ CUSTOM_CSS = """
         font-weight: 600 !important;
         transition: all 0.2s ease !important;
         padding: 6px 16px !important;
+        margin-top: 4px !important;
     }
     
     .stButton > button:hover {
@@ -120,6 +118,7 @@ CUSTOM_CSS = """
         border-color: #000000 !important;
     }
 
+    /* Card kết quả */
     .feedback-card-correct {
         background-color: #ffffff !important;
         border: 1.5px solid #2e7d32 !important;
@@ -140,14 +139,6 @@ CUSTOM_CSS = """
         margin-bottom: 12px;
     }
 
-    .studio-card {
-        background-color: #ffffff;
-        border: 1.5px solid #000000;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 15px;
-    }
-    
     .full-text-container {
         background-color: #ffffff !important;
         border: 1.5px solid #000000 !important;
@@ -594,6 +585,7 @@ if day_key not in st.session_state.user_progress["checked_states"]:
 saved_answers = st.session_state.user_progress["saved_answers"][day_key]
 checked_states = st.session_state.user_progress["checked_states"][day_key]
 
+# CHỈ HIỂN THỊ KẾT QUẢ KHI NGƯỜI DÙNG ĐÃ BẤM CHỌN VÀ BẤM NÚT "CHECK"
 def render_question_feedback(q_id, user_ans, correct_ans, explanation):
     if checked_states.get(q_id, False):
         if user_ans is not None and str(user_ans).strip().lower() == str(correct_ans).strip().lower():
@@ -648,7 +640,7 @@ with tabs[0]:
                 render_tts(v["word"], f"v_{selected_day}_{idx}")
             st.divider()
 
-    st.markdown("### 🎮 Game 1: Multiple Choice Vocabulary (Randomized Options)")
+    st.markdown("### 🎮 Game 1: Multiple Choice Vocabulary")
     for idx, q in enumerate(curr["g1_qs"]):
         st.markdown(f"**Question {idx+1}: {q['q']}**")
         q_key = f"g1_{idx}"
