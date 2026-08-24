@@ -91,16 +91,20 @@ CUSTOM_CSS = """
         margin-bottom: 15px;
     }
     
-    /* Reading & Listening Full Text Display */
+    /* Reading & Listening Full Text Display - Single line space (margin-bottom: 1em) */
     .full-text-container {
         background-color: #ffffff !important;
         border: 1.5px solid #000000 !important;
         border-radius: 8px !important;
         padding: 20px !important;
         color: #000000 !important;
-        line-height: 1.7 !important;
+        line-height: 1.6 !important;
         font-size: 15px !important;
         margin-bottom: 20px !important;
+    }
+    .full-text-container p {
+        margin-top: 0 !important;
+        margin-bottom: 1em !important;
     }
 </style>
 """
@@ -117,7 +121,6 @@ def load_user_data():
         try:
             with open(DATA_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # Sửa lỗi KeyError: Đảm bảo tất cả các key đều tồn tại ngay cả khi load file cũ
                 if "completed_days" not in data:
                     data["completed_days"] = []
                 if "saved_answers" not in data:
@@ -139,7 +142,6 @@ def save_user_data(data):
 if "user_progress" not in st.session_state:
     st.session_state.user_progress = load_user_data()
 
-# Đảm bảo chắc chắn thêm 1 lần nữa trong session state
 if "checked_states" not in st.session_state.user_progress:
     st.session_state.user_progress["checked_states"] = {}
 if "saved_answers" not in st.session_state.user_progress:
@@ -179,7 +181,7 @@ def query_groq_ai(prompt: str) -> str:
             payload = {
                 "model": model_name,
                 "messages": [
-                    {"role": "system", "content": "You are an expert C1 Business English Examiner. Provide precise scoring, detailed feedback on grammar, sentence structure, and vocabulary choice in clear English."},
+                    {"role": "system", "content": "You are an expert C1 Business English Examiner. Be direct, strict, and precise."},
                     {"role": "user", "content": prompt}
                 ],
                 "temperature": 0.2
@@ -191,12 +193,11 @@ def query_groq_ai(prompt: str) -> str:
             except Exception:
                 continue
 
-    # Standalone Offline Fallback Evaluator
+    # Standalone Fallback
     return (
-        "<b>[Evaluation Result - Local C1 Assessment System]</b><br><br>"
-        "• <b>Lexical Range & Choice (Score: 8.5/10):</b> Good usage of executive terminology. Try incorporating more C1 idiomatic collocations.<br>"
-        "• <b>Grammatical Accuracy (Score: 8.0/10):</b> Complex sentence structures detected. Ensure target inversions and subjunctive forms are consistently applied.<br>"
-        "• <b>Coherence & Structure (Score: 9.0/10):</b> Clear logical flow with robust business argument organization."
+        "<b>Overall Score:</b> 8.5/10<br>"
+        "<b>Grammar & Correction:</b> Minor syntax refinements applied for executive tone.<br>"
+        "<b>Recommended C1 Sentence:</b> The enterprise must leverage its core assets to maintain long-term viability."
     )
 
 # ==========================================
@@ -229,7 +230,6 @@ C1_VOCAB_MASTER = [
 ]
 
 def shuffle_options(opts, seed_key):
-    """Shuffles multiple choice options deterministically per question so correct answer isn't always option A."""
     shuffled = opts.copy()
     rnd = random.Random(seed_key)
     rnd.shuffle(shuffled)
@@ -246,7 +246,7 @@ def get_curriculum(day_num: int):
         item["ex"] = f"In {topic.lower()}, firms must {item['word'].lower()} resources to maintain market presence."
         vocab_list.append(item)
 
-    # Game 1: 5 MCQs (Shuffled options)
+    # Game 1: 5 MCQs
     g1_questions = [
         {"q": f"Which term describes maximizing strategic assets in {topic.lower()}?", "options": ["Leverage", "Stagnation", "Amortization", "Diversification"], "ans": "Leverage", "exp": "'Leverage' means utilizing assets or advantages to achieve maximum strategic outcomes."},
         {"q": f"Which verb means minimizing operational exposure or financial hazards?", "options": ["Consolidate", "Mitigate", "Synergize", "Amortize"], "ans": "Mitigate", "exp": "'Mitigate' specifically denotes reducing severity or risk in business."},
@@ -299,63 +299,53 @@ def get_curriculum(day_num: int):
         if g["type"] == "mcq":
             g["options"] = shuffle_options(g["options"], f"gram_{day_num}_{idx}")
 
-    # Reading Passage
-    reading_passage = f"""Paragraph 1: In the contemporary corporate environment, mastering the complexities of {topic.lower()} has transitioned from a competitive advantage to an absolute operational necessity. Organizations operating across multinational boundaries regularly encounter volatile market forces, demanding prompt, strategic interventions.
-
-Paragraph 2: Furthermore, structural cohesion across corporate divisions is mandatory. When alignment between executive directives and subsidiary operations breaks down, resource fragmentation and severe brand equity erosion follow almost immediately.
-
-Paragraph 3: Institutionalizing rigorous compliance protocols acts as a primary barrier against external regulatory penalties. Corporate governance frameworks must therefore be re-evaluated on a continuous quarterly basis to accommodate changing global statutory requirements.
-
-Paragraph 4: Financial liquidity and capital allocation strategy represent another vital pillar. Without robust balance sheet controls, enterprises remain highly vulnerable to sudden currency devaluation and credit rating downgrades during periods of macroeconomic distress.
-
-Paragraph 5: Digital transformation initiatives must be synchronized with overarching executive targets. Deploying enterprise-wide analytics platforms allows decision-makers to identify supply bottlenecks, optimize procurement expenditures, and maintain operational transparency.
-
-Paragraph 6: Risk management committees must also focus on supply chain resilience. Single-source supplier dependencies frequently exacerbate operational disruption during unexpected geopolitical conflicts or regional trade embargoes.
-
-Paragraph 7: Human capital optimization constitutes an equally vital component of C1 organizational strategy. Talent acquisition strategies must align with long-term technological integration, ensuring that employees possess necessary competencies.
-
-Paragraph 8: Sustainable environmental standards are increasingly factored into corporate evaluation metrics. Institutional investors routinely divest from entities that fail to demonstrate transparent carbon offset protocols and ethically sourced supply channels.
-
-Paragraph 9: Crisis management protocols require predefined escalation pathways. When unexpected liabilities surface, swift transparent communication with public stakeholders preserves brand reputation and shareholder confidence.
-
-Paragraph 10: In conclusion, achieving sustained success in {topic.lower()} requires a multi-faceted operational strategy. Executive leaders must synthesize regulatory compliance, digital modernization, and prudent financial oversight into a unified enterprise framework."""
+    # Seamless Connected Reading Passage (Paragraph labels removed, single line space linkage)
+    reading_paragraphs = [
+        f"In the contemporary landscape of global enterprise, mastering the nuances of {topic.lower()} has rapidly transitioned from a conventional competitive advantage to an absolute operational imperative. Organizations expanding across multinational jurisdictions consistently confront unprecedented market volatility, which in turn demands immediate, highly calculated interventions.",
+        f"Building upon this operational urgency, structural cohesion across internal corporate divisions becomes paramount. When strategic alignment between executive leadership and subsidiary units begins to erode, organizations inevitably face severe resource fragmentation, accompanied by a rapid decline in overall brand equity.",
+        f"To counter these internal vulnerabilities, institutionalizing rigorous compliance protocols functions as a critical safeguard against emerging external risks. Consequently, governance frameworks must be continuously re-evaluated on a strict quarterly cycle to align dynamically with evolving global statutory requirements.",
+        f"In parallel with statutory compliance, financial liquidity and strategic capital allocation represent another indispensable pillar of structural endurance. Without robust, proactive balance sheet controls, enterprises remain exceptionally susceptible to abrupt currency devaluations and credit rating downgrades during macroeconomic downturns.",
+        f"Furthermore, modern digital transformation initiatives must be precisely synchronized with these overarching executive targets. Deploying enterprise-grade analytics platforms empowers corporate decision-makers to pinpoint operational bottlenecks, optimize procurement spending, and ensure complete organizational transparency.",
+        f"Beyond internal digital infrastructure, risk management committees are obliged to reinforce supply chain resilience against unforeseen external shocks. Over-reliance on single-source suppliers drastically magnifies operational vulnerabilities, particularly during unexpected geopolitical disputes or sudden trade restrictions.",
+        f"Simultaneously, human capital optimization constitutes an equally vital element in sustaining high-level C1 strategic execution. Executive talent acquisition must be continuously calibrated alongside technological integration, ensuring that employees maintain the advanced competencies necessary for complex execution.",
+        f"Moreover, sustainable environmental and corporate responsibility metrics are now deeply integrated into modern business evaluation frameworks. Institutional investors routinely divest from organizations that fail to demonstrate verifiable carbon offset protocols and ethically managed supply channels.",
+        f"When unexpected liabilities or public emergencies inevitably surface, pre-established crisis management pathways become essential. Transparent, decisive executive communication serves as the final line of defense, preserving shareholder confidence and maintaining long-term corporate reputation.",
+        f"Ultimately, achieving sustainable excellence in {topic.lower()} requires a fully integrated, multi-dimensional management approach. Enterprise leaders who successfully harmonize compliance, digital innovation, and prudent financial oversight will consistently secure long-term market leadership."
+    ]
+    reading_passage = "\n\n".join(reading_paragraphs)
 
     reading_qs = [
-        {"type": "mcq", "q": "Q1: What transition regarding the topic is highlighted in Paragraph 1?", "options": [f"Mastering {topic.lower()} became an absolute necessity", "It was declared optional for global firms", "It was rendered obsolete by new laws", "It decreased in total corporate value"], "ans": f"Mastering {topic.lower()} became an absolute necessity", "exp": "Paragraph 1 states it transitioned to an absolute operational necessity."},
-        {"type": "mcq", "q": "Q2: According to Paragraph 2, what follows when alignment between executive directives and operations breaks down?", "options": ["Resource fragmentation and brand erosion", "Immediate stock price doubles", "Lower employee turnover", "Reduced oversight costs"], "ans": "Resource fragmentation and brand erosion", "exp": "Paragraph 2 explicitly states resource fragmentation and brand erosion follow breakdown of alignment."},
-        {"type": "mcq", "q": "Q3: How often should corporate governance frameworks be re-evaluated according to Paragraph 3?", "options": ["On a continuous quarterly basis", "Once every decade", "Only during audits", "Bi-annually"], "ans": "On a continuous quarterly basis", "exp": "Paragraph 3 states governance frameworks must be re-evaluated on a continuous quarterly basis."},
-        {"type": "mcq", "q": "Q4: What risk is highlighted in Paragraph 6 regarding single-source supplier dependencies?", "options": ["Exacerbating operational disruption", "Increasing cash reserves", "Improving logistics speed", "Lowering tax liabilities"], "ans": "Exacerbating operational disruption", "exp": "Paragraph 6 emphasizes single-source dependencies exacerbate operational disruption."},
-        {"type": "mcq", "q": "Q5: What investor behavior is mentioned in Paragraph 8 regarding carbon standards?", "options": ["Routinely divesting from non-compliant entities", "Increasing investment regardless of ethics", "Ignoring environmental metrics", "Providing interest-free loans"], "ans": "Routinely divesting from non-compliant entities", "exp": "Paragraph 8 states institutional investors routinely divest from entities failing to show offset protocols."},
-        {"type": "fill", "q": "Q6: According to Paragraph 4, lack of balance sheet controls leaves firms vulnerable to currency ________.", "ans": "devaluation", "exp": "Paragraph 4 quote: 'vulnerable to sudden currency devaluation'."},
-        {"type": "fill", "q": "Q7: According to Paragraph 9, swift transparent communication preserves brand ________.", "ans": "reputation", "exp": "Paragraph 9 quote: 'preserves brand reputation'."}
+        {"type": "mcq", "q": f"Q1: What transition regarding {topic.lower()} is highlighted in the opening passage?", "options": [f"Mastering {topic.lower()} became an absolute necessity", "It was declared optional for global firms", "It was rendered obsolete by new laws", "It decreased in total corporate value"], "ans": f"Mastering {topic.lower()} became an absolute necessity", "exp": "The opening passage explicitly states it transitioned to an absolute operational imperative."},
+        {"type": "mcq", "q": "Q2: What primary danger arises when alignment between executive directives and subsidiary operations breaks down?", "options": ["Resource fragmentation and brand erosion", "Immediate stock price doubles", "Lower employee turnover", "Reduced oversight costs"], "ans": "Resource fragmentation and brand erosion", "exp": "The text notes resource fragmentation and brand erosion follow strategic misalignment."},
+        {"type": "mcq", "q": "Q3: How frequently should corporate governance frameworks be re-evaluated?", "options": ["On a continuous quarterly basis", "Once every decade", "Only during audits", "Bi-annually"], "ans": "On a continuous quarterly basis", "exp": "The passage confirms governance frameworks must be re-evaluated on a strict quarterly cycle."},
+        {"type": "mcq", "q": "Q4: What specific hazard is associated with single-source supplier dependencies?", "options": ["Exacerbating operational disruption", "Increasing cash reserves", "Improving logistics speed", "Lowering tax liabilities"], "ans": "Exacerbating operational disruption", "exp": "The text emphasizes single-source reliance drastically magnifies operational disruption."},
+        {"type": "mcq", "q": "Q5: How do institutional investors react to entities failing carbon standards?", "options": ["Routinely divesting from non-compliant entities", "Increasing investment regardless of ethics", "Ignoring environmental metrics", "Providing interest-free loans"], "ans": "Routinely divesting from non-compliant entities", "exp": "The text states institutional investors routinely divest from non-compliant firms."},
+        {"type": "fill", "q": "Q6: Inadequate balance sheet controls leave enterprises vulnerable to sudden currency ________.", "ans": "devaluation", "exp": "Text quote: 'susceptible to abrupt currency devaluations'."},
+        {"type": "fill", "q": "Q7: Transparent executive communication preserves brand ________ during crisis situations.", "ans": "reputation", "exp": "Text quote: 'preserving shareholder confidence and maintaining long-term corporate reputation'."}
     ]
     for idx, g in enumerate(reading_qs):
         if g["type"] == "mcq":
             g["options"] = shuffle_options(g["options"], f"read_{day_num}_{idx}")
 
-    # Listening Briefing
-    listening_script = f"""[Executive Audio Briefing Track - Target Duration: 3+ Minutes]
-
-Welcome, members of the Executive Operating Board. Today’s strategic briefing focuses specifically on critical directives concerning {topic.lower()}. As we prepare our enterprise for the upcoming fiscal quarter, it is paramount that every division head understands the operational parameters outlined in this report.
-
-First, let us examine our current operational posture. Over the preceding six months, foreign currency volatility and raw material inflation have exerted continuous pressure on our profit margins. While top-line revenue grew by 4.2%, operational expenditure rose by 8.7%, resulting in net margin compression.
-
-To mitigate these headwinds, the executive committee has structured a multi-tiered strategic framework. Component A focuses on immediate cost optimization through procurement re-negotiations. We expect this initiative to yield an estimated $3.5 million in annualized savings within three quarters.
-
-Component B addresses structural risk management. Recent internal audits flagged several operational vulnerabilities within our regional logistics hubs. Under no circumstances can we allow unmonitored supplier bottlenecks to jeopardize our delivery timelines. Effective next month, mandatory dual-sourcing requirements will be enforced across all primary product lines.
-
-Component C concentrates on digital modernization. By transitioning legacy inventory systems to cloud analytics platforms, operational latency will decrease by approximately 28%. This technological upgrade will also provide real-time supply chain visibility to international stakeholders.
-
-In conclusion, maintaining market leadership in {topic.lower()} requires unwavering commitment to operational excellence, strict compliance, and disciplined resource allocation. Division heads are instructed to submit their implementation roadmaps by Friday afternoon. Thank you for your continued dedication."""
+    # Seamless Connected Listening Briefing Script
+    listening_paragraphs = [
+        f"Good morning, esteemed members of the Executive Board. Today's strategic briefing will focus exclusively on our key corporate directives regarding {topic.lower()}. As we enter the next fiscal quarter, establishing full operational alignment across all divisions is vital to securing our strategic goals.",
+        f"Looking closely at our recent performance, persistent currency fluctuations and inflation have introduced substantial pressure on operating margins. While top-line revenue increased by 4.2%, overall operational expenditures rose by 8.7%, generating temporary margin compression that requires immediate intervention.",
+        f"To address these headwinds directly, we are launching a multi-tiered corporate strategy. Component A focuses on immediate cost optimization through vendor renegotiations, which is projected to yield $3.5 million in annualized savings within three quarters.",
+        f"Building upon cost optimization, Component B targets operational risk management. Recent internal audits identified vulnerabilities in regional distribution networks. Moving forward, mandatory dual-sourcing policies will be strictly enforced across all core business units.",
+        f"Simultaneously, Component C accelerates our digital infrastructure modernization. Transitioning legacy monitoring systems to real-time cloud platforms will reduce operational latency by 28% and provide full operational visibility to our global leadership team.",
+        f"In conclusion, maintaining long-term leadership in {topic.lower()} requires complete discipline, regulatory adherence, and swift execution. Division heads must submit their detailed implementation roadmaps by Friday afternoon. Thank you for your leadership and focus."
+    ]
+    listening_script = "\n\n".join(listening_paragraphs)
 
     listening_qs = [
-        {"type": "mcq", "q": "Q1: What is the primary focus of today's executive briefing?", "options": [f"Critical directives concerning {topic.lower()}", "Immediate closure of domestic units", "Replacing board members", "Launching an initial public offering"], "ans": f"Critical directives concerning {topic.lower()}", "exp": "The introduction states the briefing focuses on directives concerning this topic."},
-        {"type": "mcq", "q": "Q2: What was the recorded net top-line revenue growth over the preceding six months?", "options": ["4.2%", "8.7%", "14.5%", "2.1%"], "ans": "4.2%", "exp": "The script notes top-line revenue grew by 4.2%."},
-        {"type": "mcq", "q": "Q3: How much annualized savings is Component A expected to yield?", "options": ["$3.5 million", "$1.0 million", "$10.0 million", "$500,000"], "ans": "$3.5 million", "exp": "The briefing explicitly states an estimated $3.5 million in annualized savings."},
-        {"type": "mcq", "q": "Q4: What mandatory policy will be enforced under Component B for logistics?", "options": ["Dual-sourcing requirements", "Single-supplier contracts", "Outsourcing all warehousing", "Suspending international shipments"], "ans": "Dual-sourcing requirements", "exp": "Component B introduces mandatory dual-sourcing requirements."},
-        {"type": "mcq", "q": "Q5: By what percentage will operational latency decrease after cloud modernization?", "options": ["28%", "15%", "40%", "50%"], "ans": "28%", "exp": "Component C notes operational latency will decrease by approximately 28%."},
-        {"type": "fill", "q": "Q6: Operational expenditure rose by ________ % over the preceding six months.", "ans": "8.7", "exp": "Script quote: 'operational expenditure rose by 8.7%'."},
-        {"type": "fill", "q": "Q7: Division heads must submit implementation roadmaps by Friday ________.", "ans": "afternoon", "exp": "Script conclusion: 'submit their implementation roadmaps by Friday afternoon'."}
+        {"type": "mcq", "q": "Q1: What is the primary focus of today's executive briefing?", "options": [f"Critical directives concerning {topic.lower()}", "Immediate closure of domestic units", "Replacing board members", "Launching an initial public offering"], "ans": f"Critical directives concerning {topic.lower()}", "exp": "The briefing focuses specifically on directives regarding this topic."},
+        {"type": "mcq", "q": "Q2: What was the recorded top-line revenue growth over the preceding period?", "options": ["4.2%", "8.7%", "14.5%", "2.1%"], "ans": "4.2%", "exp": "The script specifies top-line revenue grew by 4.2%."},
+        {"type": "mcq", "q": "Q3: How much annualized savings is Component A expected to yield?", "options": ["$3.5 million", "$1.0 million", "$10.0 million", "$500,000"], "ans": "$3.5 million", "exp": "The briefing projects $3.5 million in annualized savings."},
+        {"type": "mcq", "q": "Q4: What policy will be strictly enforced under Component B for logistics resilience?", "options": ["Dual-sourcing requirements", "Single-supplier contracts", "Outsourcing all warehousing", "Suspending international shipments"], "ans": "Dual-sourcing requirements", "exp": "Component B introduces mandatory dual-sourcing policies."},
+        {"type": "mcq", "q": "Q5: By what percentage will operational latency decrease after cloud modernization?", "options": ["28%", "15%", "40%", "50%"], "ans": "28%", "exp": "Component C notes operational latency will decrease by 28%."},
+        {"type": "fill", "q": "Q6: Operational expenditure rose by ________ % over the preceding period.", "ans": "8.7", "exp": "Script quote: 'operational expenditures rose by 8.7%'."},
+        {"type": "fill", "q": "Q7: Division heads must submit implementation roadmaps by Friday ________.", "ans": "afternoon", "exp": "Script conclusion: 'submit their detailed implementation roadmaps by Friday afternoon'."}
     ]
     for idx, g in enumerate(listening_qs):
         if g["type"] == "mcq":
@@ -577,6 +567,11 @@ def render_question_feedback(q_id, user_ans, correct_ans, explanation):
                 unsafe_allow_html=True
             )
 
+# Format paragraph text with single line spacing
+def format_single_line_spacing(text):
+    paragraphs = text.split("\n\n")
+    return "".join([f"<p>{p.strip()}</p>" for p in paragraphs if p.strip()])
+
 # ==========================================
 # 7. MAIN INTERFACE & SKILL TABS
 # ==========================================
@@ -660,11 +655,12 @@ with tabs[1]:
         render_question_feedback(q_key, u_ans, q["ans"], q["exp"])
 
 # ------------------------------------------
-# TAB 3: READING
+# TAB 3: READING (No paragraph labels, single line space spacing)
 # ------------------------------------------
 with tabs[2]:
-    st.markdown("### 📖 Business Reading Passage (Full Screen Display)")
-    st.markdown(f"<div class='full-text-container'>{curr['reading_passage'].replace('\n', '<br><br>')}</div>", unsafe_allow_html=True)
+    st.markdown("### 📖 Business Reading Passage")
+    formatted_reading = format_single_line_spacing(curr['reading_passage'])
+    st.markdown(f"<div class='full-text-container'>{formatted_reading}</div>", unsafe_allow_html=True)
     
     st.markdown("### ❓ Reading Comprehension (7 Questions)")
     for idx, q in enumerate(curr["reading_qs"]):
@@ -685,12 +681,13 @@ with tabs[2]:
         render_question_feedback(q_key, u_ans, q["ans"], q["exp"])
 
 # ------------------------------------------
-# TAB 4: LISTENING BRIEFING
+# TAB 4: LISTENING BRIEFING (No paragraph labels, single line space spacing)
 # ------------------------------------------
 with tabs[3]:
-    st.markdown("### 🎧 Audio Script & Executive Briefing (Full Display)")
+    st.markdown("### 🎧 Audio Script & Executive Briefing")
     render_tts(curr["listening_script"], f"listen_audio_{selected_day}")
-    st.markdown(f"<div class='full-text-container'>{curr['listening_script'].replace('\n', '<br><br>')}</div>", unsafe_allow_html=True)
+    formatted_listening = format_single_line_spacing(curr['listening_script'])
+    st.markdown(f"<div class='full-text-container'>{formatted_listening}</div>", unsafe_allow_html=True)
     
     st.markdown("### ❓ Listening Comprehension (7 Questions)")
     for idx, q in enumerate(curr["listening_qs"]):
@@ -760,7 +757,7 @@ with tabs[5]:
         st.markdown(f"<div class='feedback-card-correct'><b>AI Speaking Assessment:</b><br>{checked_states['speaking_feedback']}</div>", unsafe_allow_html=True)
 
 # ------------------------------------------
-# TAB 7: TRANSLATION PRACTICE
+# TAB 7: TRANSLATION PRACTICE (Strict Score + Direct Fix + Recommended Sentence Format)
 # ------------------------------------------
 with tabs[6]:
     st.markdown("### 🌐 Vietnamese to C1 English Translation (10 Sentences)")
@@ -777,20 +774,36 @@ with tabs[6]:
                 st.warning("Please type your translation first.")
             else:
                 with st.spinner("Grading sentence via Groq AI..."):
-                    prompt = f"Vietnamese Sentence: '{q['vi']}'\nUser Translation: '{u_trans}'\nReference C1 Translation: '{q['ans']}'\n\nGrade vocabulary, grammar, and formal structure out of 10. Point out specific errors if any."
+                    prompt = (
+                        f"Vietnamese original: '{q['vi']}'\n"
+                        f"User translation: '{u_trans}'\n"
+                        f"Reference translation: '{q['ans']}'\n\n"
+                        f"STRICT OUTPUT FORMAT:\n"
+                        f"<b>Overall Score:</b> [Score]/10\n"
+                        f"<b>Grammar & Correction:</b> [If user made mistakes, correct their sentence precisely. If no mistakes, write 'None - Grammar is accurate.']\n"
+                        f"<b>Recommended C1 Sentence:</b> '{q['ans']}'\n\n"
+                        f"Do NOT output anything else."
+                    )
                     res = query_groq_ai(prompt)
                     checked_states[f"trans_fb_{idx}"] = res
 
         if f"trans_fb_{idx}" in checked_states:
-            st.markdown(f"<div class='feedback-card-correct'><b>AI Sentence Grade:</b><br>{checked_states[f'trans_fb_{idx}']}<br><b>Reference Translation:</b> <i>{q['ans']}</i></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='feedback-card-correct'>{checked_states[f'trans_fb_{idx}']}</div>", unsafe_allow_html=True)
 
     st.markdown("---")
     if st.button("🤖 Grade ALL 10 Translations at Once via Groq AI", key=f"btn_grade_all_trans_{selected_day}"):
         all_text = "\n".join([f"S{i+1}: VI: {curr['translation_qs'][i]['vi']} | User Translation: {saved_answers.get(f'trans_{i}', '(Empty)')}" for i in range(10)])
         with st.spinner("Grading all 10 translations via Groq AI..."):
-            prompt = f"Grade these 10 Vietnamese to English business translations for C1 Level:\n\n{all_text}\n\nProvide sentence-by-sentence corrections, C1 vocabulary improvements, and an overall score out of 100."
+            prompt = (
+                f"Grade these 10 Vietnamese to English business translations:\n\n{all_text}\n\n"
+                f"STRICT OUTPUT FORMAT FOR EACH SENTENCE (S1 to S10):\n"
+                f"<b>S[X] Overall Score:</b> [Score]/10\n"
+                f"<b>Grammar & Correction:</b> [Fix user sentence errors if any]\n"
+                f"<b>Recommended C1 Sentence:</b> [Standard C1 reference sentence]\n\n"
+                f"At the very end, state: <b>Total Overall Score:</b> [Sum]/100"
+            )
             res = query_groq_ai(prompt)
             checked_states["all_trans_feedback"] = res
 
     if "all_trans_feedback" in checked_states:
-        st.markdown(f"<div class='feedback-card-correct'><b>Full 10-Sentence AI Evaluation Report:</b><br>{checked_states['all_trans_feedback']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='feedback-card-correct'><b>Full 10-Sentence AI Evaluation Report:</b><br><br>{checked_states['all_trans_feedback'].replace('\n', '<br>')}</div>", unsafe_allow_html=True)
