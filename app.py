@@ -195,8 +195,10 @@ def query_groq_ai(prompt: str) -> str:
 
     # Standalone Fallback
     return (
-        "<b>Overall Score:</b> 8.5/10<br>"
-        "<b>Grammar & Correction:</b> Minor syntax refinements applied for executive tone.<br>"
+        "<b>Overall Score:</b> 8.0/10<br>"
+        "<b>Grammar & Correction:</b><br>"
+        "• Minor word order adjustment required.<br>"
+        "• Replace basic terms with advanced C1 corporate phrasing.<br>"
         "<b>Recommended C1 Sentence:</b> The enterprise must leverage its core assets to maintain long-term viability."
     )
 
@@ -757,7 +759,7 @@ with tabs[5]:
         st.markdown(f"<div class='feedback-card-correct'><b>AI Speaking Assessment:</b><br>{checked_states['speaking_feedback']}</div>", unsafe_allow_html=True)
 
 # ------------------------------------------
-# TAB 7: TRANSLATION PRACTICE (Strict Score + Direct Fix + Recommended Sentence Format)
+# TAB 7: TRANSLATION PRACTICE (Fixed Bulleted Grammar Analysis & Correct Vietnamese Recommendation)
 # ------------------------------------------
 with tabs[6]:
     st.markdown("### 🌐 Vietnamese to C1 English Translation (10 Sentences)")
@@ -775,14 +777,15 @@ with tabs[6]:
             else:
                 with st.spinner("Grading sentence via Groq AI..."):
                     prompt = (
-                        f"Vietnamese original: '{q['vi']}'\n"
-                        f"User translation: '{u_trans}'\n"
-                        f"Reference translation: '{q['ans']}'\n\n"
-                        f"STRICT OUTPUT FORMAT:\n"
-                        f"<b>Overall Score:</b> [Score]/10\n"
-                        f"<b>Grammar & Correction:</b> [If user made mistakes, correct their sentence precisely. If no mistakes, write 'None - Grammar is accurate.']\n"
-                        f"<b>Recommended C1 Sentence:</b> '{q['ans']}'\n\n"
-                        f"Do NOT output anything else."
+                        f"Vietnamese original sentence: '{q['vi']}'\n"
+                        f"User translation submission: '{u_trans}'\n"
+                        f"Target reference C1 translation: '{q['ans']}'\n\n"
+                        f"Provide a strict evaluation in HTML using EXACTLY this structure:\n"
+                        f"<b>Overall Score:</b> [Score]/10<br>"
+                        f"<b>Grammar & Correction:</b><br>"
+                        f"• [Detail specific grammatical, lexical, or word choice error 1 in user's text. If no errors, state: No errors detected in user input.]<br>"
+                        f"• [Detail specific error 2 or state how to elevate tone to C1 corporate level.]<br>"
+                        f"<b>Recommended C1 Sentence:</b> '{q['ans']}'"
                     )
                     res = query_groq_ai(prompt)
                     checked_states[f"trans_fb_{idx}"] = res
@@ -792,18 +795,20 @@ with tabs[6]:
 
     st.markdown("---")
     if st.button("🤖 Grade ALL 10 Translations at Once via Groq AI", key=f"btn_grade_all_trans_{selected_day}"):
-        all_text = "\n".join([f"S{i+1}: VI: {curr['translation_qs'][i]['vi']} | User Translation: {saved_answers.get(f'trans_{i}', '(Empty)')}" for i in range(10)])
+        all_text = "\n".join([f"Sentence {i+1}: VI: '{curr['translation_qs'][i]['vi']}' | User Translation: '{saved_answers.get(f'trans_{i}', '(Empty)')}' | Expected C1: '{curr['translation_qs'][i]['ans']}'" for i in range(10)])
         with st.spinner("Grading all 10 translations via Groq AI..."):
             prompt = (
-                f"Grade these 10 Vietnamese to English business translations:\n\n{all_text}\n\n"
-                f"STRICT OUTPUT FORMAT FOR EACH SENTENCE (S1 to S10):\n"
-                f"<b>S[X] Overall Score:</b> [Score]/10\n"
-                f"<b>Grammar & Correction:</b> [Fix user sentence errors if any]\n"
-                f"<b>Recommended C1 Sentence:</b> [Standard C1 reference sentence]\n\n"
-                f"At the very end, state: <b>Total Overall Score:</b> [Sum]/100"
+                f"Evaluate these 10 Vietnamese to C1 English translations:\n\n{all_text}\n\n"
+                f"Provide feedback for EACH sentence (Sentence 1 to 10) in exact HTML formatting as follows:\n"
+                f"<b>Sentence [X] Overall Score:</b> [Score]/10<br>"
+                f"<b>Grammar & Correction:</b><br>"
+                f"• [Specific error or improvement point 1]<br>"
+                f"• [Specific error or improvement point 2]<br>"
+                f"<b>Recommended C1 Sentence:</b> '[Correct reference translation for the Vietnamese sentence]'<br><br>"
+                f"At the end, provide: <b>Total Overall Score:</b> [Total Score]/100"
             )
             res = query_groq_ai(prompt)
             checked_states["all_trans_feedback"] = res
 
     if "all_trans_feedback" in checked_states:
-        st.markdown(f"<div class='feedback-card-correct'><b>Full 10-Sentence AI Evaluation Report:</b><br><br>{checked_states['all_trans_feedback'].replace('\n', '<br>')}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='feedback-card-correct'><b>Full 10-Sentence AI Evaluation Report:</b><br><br>{checked_states['all_trans_feedback']}</div>", unsafe_allow_html=True)
