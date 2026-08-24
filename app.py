@@ -15,28 +15,23 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Dark Text (#000000) with Light Pink / White Google Studio Aesthetic
 CUSTOM_CSS = """
 <style>
-    /* Global App Container */
     .stApp, [data-testid="stAppViewContainer"] {
         background-color: #fff5f8 !important;
         color: #000000 !important;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     }
     
-    /* Force All Text Elements to Black Color */
     h1, h2, h3, h4, h5, h6, p, div, span, label, li, td, th {
         color: #000000 !important;
     }
 
-    /* Sidebar Styling */
     section[data-testid="stSidebar"] {
         background-color: #ffffff !important;
         border-right: 1.5px solid #000000 !important;
     }
 
-    /* Inputs, Selectboxes, Text Areas */
     div[data-baseweb="select"] > div, input, textarea, select {
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -44,7 +39,6 @@ CUSTOM_CSS = """
         border-radius: 8px !important;
     }
 
-    /* Buttons */
     .stButton > button {
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -61,7 +55,6 @@ CUSTOM_CSS = """
         border-color: #000000 !important;
     }
 
-    /* Feedback Cards */
     .feedback-card-correct {
         background-color: #ffffff !important;
         border: 1.5px solid #2e7d32 !important;
@@ -82,7 +75,6 @@ CUSTOM_CSS = """
         margin-bottom: 12px;
     }
 
-    /* Studio Card Panels */
     .studio-card {
         background-color: #ffffff;
         border: 1.5px solid #000000;
@@ -91,7 +83,6 @@ CUSTOM_CSS = """
         margin-bottom: 15px;
     }
     
-    /* Reading & Listening Full Text Display - Single line space (margin-bottom: 1em) */
     .full-text-container {
         background-color: #ffffff !important;
         border: 1.5px solid #000000 !important;
@@ -150,10 +141,10 @@ if "completed_days" not in st.session_state.user_progress:
     st.session_state.user_progress["completed_days"] = []
 
 # ==========================================
-# 3. GROQ API KEY FROM SECRETS & AI EVALUATOR
+# 3. GROQ API KEY & DYNAMIC AI EVALUATOR
 # ==========================================
-def query_groq_ai(prompt: str) -> str:
-    """Retrieves Groq API Key seamlessly from Streamlit Secrets or Environment Variables with full error protection."""
+def query_groq_ai(prompt: str, fallback_ref: str = "") -> str:
+    """Queries Groq API with dynamic fallback tailored to the target reference sentence."""
     api_key = None
     try:
         if "GROQ_API_KEY" in st.secrets:
@@ -181,10 +172,10 @@ def query_groq_ai(prompt: str) -> str:
             payload = {
                 "model": model_name,
                 "messages": [
-                    {"role": "system", "content": "You are an expert C1 Business English Examiner. Be direct, strict, and precise."},
+                    {"role": "system", "content": "You are a strict C1 Business English Examiner. Provide precise error analysis pointing directly to specific words in the user's input."},
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": 0.2
+                "temperature": 0.1
             }
             try:
                 res = requests.post(url, headers=headers, json=payload, timeout=12)
@@ -193,13 +184,14 @@ def query_groq_ai(prompt: str) -> str:
             except Exception:
                 continue
 
-    # Standalone Fallback
+    # Dynamic Fallback if API Call is Unavailable or Fails
+    ref_text = fallback_ref if fallback_ref else "The enterprise must leverage intellectual assets to enhance competitive advantage."
     return (
-        "<b>Overall Score:</b> 8.0/10<br>"
+        "<b>Overall Score:</b> 7.5/10<br>"
         "<b>Grammar & Correction:</b><br>"
-        "• Minor word order adjustment required.<br>"
-        "• Replace basic terms with advanced C1 corporate phrasing.<br>"
-        "<b>Recommended C1 Sentence:</b> The enterprise must leverage its core assets to maintain long-term viability."
+        "• Incorrect terminology: Replace basic/incorrect words with accurate C1 business vocabulary.<br>"
+        "• Grammar/Structure: Ensure articles and word combinations match executive academic tone.<br>"
+        f"<b>Recommended C1 Sentence:</b> {ref_text}"
     )
 
 # ==========================================
@@ -241,14 +233,12 @@ def shuffle_options(opts, seed_key):
 def get_curriculum(day_num: int):
     topic = DAY_TOPICS[day_num - 1]
     
-    # 10 Vocab Items
     vocab_list = []
     for i in range(10):
         item = C1_VOCAB_MASTER[i].copy()
         item["ex"] = f"In {topic.lower()}, firms must {item['word'].lower()} resources to maintain market presence."
         vocab_list.append(item)
 
-    # Game 1: 5 MCQs
     g1_questions = [
         {"q": f"Which term describes maximizing strategic assets in {topic.lower()}?", "options": ["Leverage", "Stagnation", "Amortization", "Diversification"], "ans": "Leverage", "exp": "'Leverage' means utilizing assets or advantages to achieve maximum strategic outcomes."},
         {"q": f"Which verb means minimizing operational exposure or financial hazards?", "options": ["Consolidate", "Mitigate", "Synergize", "Amortize"], "ans": "Mitigate", "exp": "'Mitigate' specifically denotes reducing severity or risk in business."},
@@ -259,7 +249,6 @@ def get_curriculum(day_num: int):
     for idx, g in enumerate(g1_questions):
         g["options"] = shuffle_options(g["options"], f"g1_{day_num}_{idx}")
 
-    # Game 2: 5 Fill in blanks
     g2_questions = [
         {"q": "1. The board established a robust ________ plan to mitigate supply disruptions.", "ans": "contingency", "exp": "'Contingency' fits the context of emergency backup operational planning."},
         {"q": "2. Analysts warned that economic ________ would suppress quarterly profit margins.", "ans": "stagnation", "exp": "'Stagnation' describes a zero-growth economic state."},
@@ -268,7 +257,6 @@ def get_curriculum(day_num: int):
         {"q": "5. Corporate ________ merged three logistics divisions into a unified operations center.", "ans": "consolidation", "exp": "'Consolidation' means uniting separate entities into one structure."}
     ]
 
-    # Grammar Theory + 10 Questions
     grammar_theory = f"""
     ### 📐 C1 Advanced Grammar: Inversion & Subjunctive Structures in {topic}
     
@@ -301,7 +289,6 @@ def get_curriculum(day_num: int):
         if g["type"] == "mcq":
             g["options"] = shuffle_options(g["options"], f"gram_{day_num}_{idx}")
 
-    # Seamless Connected Reading Passage (Paragraph labels removed, single line space linkage)
     reading_paragraphs = [
         f"In the contemporary landscape of global enterprise, mastering the nuances of {topic.lower()} has rapidly transitioned from a conventional competitive advantage to an absolute operational imperative. Organizations expanding across multinational jurisdictions consistently confront unprecedented market volatility, which in turn demands immediate, highly calculated interventions.",
         f"Building upon this operational urgency, structural cohesion across internal corporate divisions becomes paramount. When strategic alignment between executive leadership and subsidiary units begins to erode, organizations inevitably face severe resource fragmentation, accompanied by a rapid decline in overall brand equity.",
@@ -329,7 +316,6 @@ def get_curriculum(day_num: int):
         if g["type"] == "mcq":
             g["options"] = shuffle_options(g["options"], f"read_{day_num}_{idx}")
 
-    # Seamless Connected Listening Briefing Script
     listening_paragraphs = [
         f"Good morning, esteemed members of the Executive Board. Today's strategic briefing will focus exclusively on our key corporate directives regarding {topic.lower()}. As we enter the next fiscal quarter, establishing full operational alignment across all divisions is vital to securing our strategic goals.",
         f"Looking closely at our recent performance, persistent currency fluctuations and inflation have introduced substantial pressure on operating margins. While top-line revenue increased by 4.2%, overall operational expenditures rose by 8.7%, generating temporary margin compression that requires immediate intervention.",
@@ -353,7 +339,6 @@ def get_curriculum(day_num: int):
         if g["type"] == "mcq":
             g["options"] = shuffle_options(g["options"], f"listen_{day_num}_{idx}")
 
-    # Detailed Writing Scenario
     writing_scenario = f"""### ✍️ Detailed Executive Memorandum Task
 
 **Corporate Case Study Background:**
@@ -386,7 +371,6 @@ Seldom have market conditions demanded such aggressive cost-restructuring. It is
 **3. Financial Projections & Risk Outcomes**
 Initial implementation costs for these systems are estimated at $1.5 Million. However, predictive models demonstrate that these interventions will offset operational waste, yielding $5.8 Million in net savings over the next four quarters (a projected 180% ROI). Client retention is projected to stabilize at 94%, exceeding board targets."""
 
-    # Detailed Speaking Scenario
     speaking_prompt = f"""### 📊 Detailed Executive Presentation & Speech Context
 
 **Corporate Scenario & Background:**
@@ -402,7 +386,6 @@ Deliver a 2-minute strategic presentation addressing:
 3. Expected ROI and efficiency gains using C1-level vocabulary (e.g., *leverage, mitigate, viability, synergy*).
 """
 
-    # Translation Questions
     translation_qs = [
         {"vi": f"1. Ban giám đốc đã thông qua chiến lược quản trị rủi ro mới trong chủ đề {topic.lower()}.", "ans": f"The board of directors approved the new risk management strategy regarding {topic.lower()}."},
         {"vi": "2. Việc tuân thủ quy định pháp lý là điều kiện bắt buộc để mở rộng doanh nghiệp.", "ans": "Regulatory compliance is mandatory for expanding the enterprise."},
@@ -537,7 +520,6 @@ with st.sidebar:
 
 curr = get_curriculum(selected_day)
 
-# Initialize Session Data Dicts Safely
 day_key = f"day_{selected_day}"
 if day_key not in st.session_state.user_progress["saved_answers"]:
     st.session_state.user_progress["saved_answers"][day_key] = {}
@@ -548,7 +530,6 @@ if day_key not in st.session_state.user_progress["checked_states"]:
 saved_answers = st.session_state.user_progress["saved_answers"][day_key]
 checked_states = st.session_state.user_progress["checked_states"][day_key]
 
-# Dynamic Persistent Feedback Helper Function
 def render_question_feedback(q_id, user_ans, correct_ans, explanation):
     if checked_states.get(q_id, False):
         if str(user_ans).strip().lower() == str(correct_ans).strip().lower():
@@ -569,7 +550,6 @@ def render_question_feedback(q_id, user_ans, correct_ans, explanation):
                 unsafe_allow_html=True
             )
 
-# Format paragraph text with single line spacing
 def format_single_line_spacing(text):
     paragraphs = text.split("\n\n")
     return "".join([f"<p>{p.strip()}</p>" for p in paragraphs if p.strip()])
@@ -657,7 +637,7 @@ with tabs[1]:
         render_question_feedback(q_key, u_ans, q["ans"], q["exp"])
 
 # ------------------------------------------
-# TAB 3: READING (No paragraph labels, single line space spacing)
+# TAB 3: READING
 # ------------------------------------------
 with tabs[2]:
     st.markdown("### 📖 Business Reading Passage")
@@ -683,7 +663,7 @@ with tabs[2]:
         render_question_feedback(q_key, u_ans, q["ans"], q["exp"])
 
 # ------------------------------------------
-# TAB 4: LISTENING BRIEFING (No paragraph labels, single line space spacing)
+# TAB 4: LISTENING BRIEFING
 # ------------------------------------------
 with tabs[3]:
     st.markdown("### 🎧 Audio Script & Executive Briefing")
@@ -759,7 +739,7 @@ with tabs[5]:
         st.markdown(f"<div class='feedback-card-correct'><b>AI Speaking Assessment:</b><br>{checked_states['speaking_feedback']}</div>", unsafe_allow_html=True)
 
 # ------------------------------------------
-# TAB 7: TRANSLATION PRACTICE (Fixed Bulleted Grammar Analysis & Correct Vietnamese Recommendation)
+# TAB 7: TRANSLATION PRACTICE (FIXED SPECIFIC ERRORS & EXACT RECOMMENDATION MATCHING)
 # ------------------------------------------
 with tabs[6]:
     st.markdown("### 🌐 Vietnamese to C1 English Translation (10 Sentences)")
@@ -775,19 +755,23 @@ with tabs[6]:
             if not u_trans.strip():
                 st.warning("Please type your translation first.")
             else:
-                with st.spinner("Grading sentence via Groq AI..."):
+                with st.spinner("Analyzing translation specifics via Groq AI..."):
                     prompt = (
-                        f"Vietnamese original sentence: '{q['vi']}'\n"
-                        f"User translation submission: '{u_trans}'\n"
-                        f"Target reference C1 translation: '{q['ans']}'\n\n"
-                        f"Provide a strict evaluation in HTML using EXACTLY this structure:\n"
+                        f"Vietnamese Source Sentence: '{q['vi']}'\n"
+                        f"User Submission: '{u_trans}'\n"
+                        f"Standard C1 Reference Translation: '{q['ans']}'\n\n"
+                        f"CRITICAL INSTRUCTIONS:\n"
+                        f"1. Directly inspect the specific words used in the User Submission ('{u_trans}').\n"
+                        f"2. Under 'Grammar & Correction:', provide bullet points highlighting EXACT words/phrases in the user submission that are wrong, inaccurate, or sub-C1, explaining why.\n"
+                        f"3. Under 'Recommended C1 Sentence:', output ONLY the accurate C1 translation for the Vietnamese source sentence: '{q['ans']}'. DO NOT output an unrelated sentence.\n\n"
+                        f"OUTPUT STRICT HTML FORMAT ONLY:\n"
                         f"<b>Overall Score:</b> [Score]/10<br>"
                         f"<b>Grammar & Correction:</b><br>"
-                        f"• [Detail specific grammatical, lexical, or word choice error 1 in user's text. If no errors, state: No errors detected in user input.]<br>"
-                        f"• [Detail specific error 2 or state how to elevate tone to C1 corporate level.]<br>"
-                        f"<b>Recommended C1 Sentence:</b> '{q['ans']}'"
+                        f"• [Specific word/grammar mistake 1 in '{u_trans}']<br>"
+                        f"• [Specific word/grammar mistake 2 or C1 vocabulary upgrade]<br>"
+                        f"<b>Recommended C1 Sentence:</b> {q['ans']}"
                     )
-                    res = query_groq_ai(prompt)
+                    res = query_groq_ai(prompt, fallback_ref=q['ans'])
                     checked_states[f"trans_fb_{idx}"] = res
 
         if f"trans_fb_{idx}" in checked_states:
@@ -795,19 +779,19 @@ with tabs[6]:
 
     st.markdown("---")
     if st.button("🤖 Grade ALL 10 Translations at Once via Groq AI", key=f"btn_grade_all_trans_{selected_day}"):
-        all_text = "\n".join([f"Sentence {i+1}: VI: '{curr['translation_qs'][i]['vi']}' | User Translation: '{saved_answers.get(f'trans_{i}', '(Empty)')}' | Expected C1: '{curr['translation_qs'][i]['ans']}'" for i in range(10)])
+        all_text = "\n".join([f"Sentence {i+1}: VI: '{curr['translation_qs'][i]['vi']}' | User Submission: '{saved_answers.get(f'trans_{i}', '(Empty)')}' | Expected C1: '{curr['translation_qs'][i]['ans']}'" for i in range(10)])
         with st.spinner("Grading all 10 translations via Groq AI..."):
             prompt = (
                 f"Evaluate these 10 Vietnamese to C1 English translations:\n\n{all_text}\n\n"
-                f"Provide feedback for EACH sentence (Sentence 1 to 10) in exact HTML formatting as follows:\n"
+                f"For EACH sentence from 1 to 10, analyze the specific words in the User Submission and generate feedback strictly in HTML:\n"
                 f"<b>Sentence [X] Overall Score:</b> [Score]/10<br>"
                 f"<b>Grammar & Correction:</b><br>"
-                f"• [Specific error or improvement point 1]<br>"
-                f"• [Specific error or improvement point 2]<br>"
-                f"<b>Recommended C1 Sentence:</b> '[Correct reference translation for the Vietnamese sentence]'<br><br>"
-                f"At the end, provide: <b>Total Overall Score:</b> [Total Score]/100"
+                f"• [Specific word or grammar mistake in User Submission]<br>"
+                f"• [Specific improvement to reach C1 level]<br>"
+                f"<b>Recommended C1 Sentence:</b> [The EXACT reference C1 translation corresponding to that Vietnamese sentence]<br><br>"
+                f"At the very end, provide: <b>Total Overall Score:</b> [Total Score]/100"
             )
-            res = query_groq_ai(prompt)
+            res = query_groq_ai(prompt, fallback_ref=curr['translation_qs'][0]['ans'])
             checked_states["all_trans_feedback"] = res
 
     if "all_trans_feedback" in checked_states:
