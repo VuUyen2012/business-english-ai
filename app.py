@@ -34,10 +34,15 @@ CUSTOM_CSS = """
     }
 
     /* ==========================================
-       TRIỆT TIÊU TOÀN BỘ MÀU ĐỎ/HỒNG CỦA STREAMLIT RADIO
+       TRIỆT TIÊU TOÀN BỘ MÀU ĐỎ/HỒNG CỦA STREAMLIT RADIO (FIX TRIỆT ĐỂ)
        ========================================== */
 
-    /* Khung ngoài của từng option */
+    /* Reset toàn bộ khung chứa Radio */
+    div[data-testid="stRadio"] {
+        background-color: transparent !important;
+    }
+
+    /* Khung ngoài của từng option khi CHƯA / ĐÃ CHỌN */
     div[data-testid="stRadio"] div[role="radiogroup"] > label {
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -49,13 +54,15 @@ CUSTOM_CSS = """
         align-items: center !important;
         cursor: pointer !important;
         box-shadow: none !important;
+        outline: none !important;
     }
 
     div[data-testid="stRadio"] div[role="radiogroup"] > label:hover {
         background-color: #f5f5f5 !important;
+        border-color: #000000 !important;
     }
 
-    /* Đảm bảo chữ phương án màu đen rõ ràng, không bị ô đen */
+    /* Đảm bảo chữ phương án màu đen rõ ràng */
     div[data-testid="stRadio"] div[role="radiogroup"] label p,
     div[data-testid="stRadio"] div[role="radiogroup"] label span {
         color: #000000 !important;
@@ -65,32 +72,39 @@ CUSTOM_CSS = """
         margin: 0 !important;
     }
 
-    /* Ghi đè toàn bộ màu nền/viền đỏ/hồng của BaseWeb Radio */
-    div[data-baseweb="radio"] div {
-        border-color: #000000 !important;
+    /* TRIỆT HẠ MÀU HỒNG/ĐỎ CỦA CHẤM TRÒN RADIO BASEWEB */
+    div[data-baseweb="radio"] {
+        background-color: transparent !important;
     }
 
-    /* Khi radio ĐÃ CHỌN: Đổi màu chấm từ Đỏ/Hồng sang ĐEN hoàn toàn */
-    div[data-baseweb="radio"] input:checked + div,
+    /* Chấm tròn radio khi chưa chọn hoặc đã chọn */
+    div[data-baseweb="radio"] > div {
+        background-color: #ffffff !important;
+        border-color: #000000 !important;
+        box-shadow: none !important;
+    }
+
+    /* Khi option ĐÃ ĐƯỢC CHỌN (aria-checked="true") -> Chấm tròn chuyển màu ĐEN hoàn toàn */
     div[data-testid="stRadio"] div[role="radiogroup"] label[aria-checked="true"] div[data-baseweb="radio"] > div {
         background-color: #000000 !important;
         border-color: #000000 !important;
         box-shadow: inset 0 0 0 3px #ffffff !important;
     }
 
-    /* Khi radio CHƯA CHỌN: Nền trắng, viền đen */
-    div[data-baseweb="radio"] input:not(:checked) + div {
+    /* Khi option CHƯA CHỌN (aria-checked="false") -> Nền TRẮNG hoàn toàn, không đỏ/hồng */
+    div[data-testid="stRadio"] div[role="radiogroup"] label[aria-checked="false"] div[data-baseweb="radio"] > div {
         background-color: #ffffff !important;
         border-color: #000000 !important;
         box-shadow: none !important;
     }
 
-    /* Xóa hoàn toàn hào quang/vòng màu đỏ hồng khi hover hoặc focus vào radio */
-    div[data-baseweb="radio"] *::before,
-    div[data-baseweb="radio"] *::after {
-        background-color: transparent !important;
-        border-color: transparent !important;
+    /* Xóa toàn bộ viền focus, viền đỏ, hiệu ứng hover mặc định của Streamlit Theme */
+    div[data-baseweb="radio"] input:focus + div,
+    div[data-baseweb="radio"] input:active + div,
+    div[data-baseweb="radio"] input:hover + div {
+        border-color: #000000 !important;
         box-shadow: none !important;
+        background-color: transparent !important;
     }
 
     /* Style Nút Check Answer */
@@ -271,7 +285,6 @@ C1_VOCAB_MASTER = [
 ]
 
 def get_fixed_options(opts, seed_key):
-    """Giữ nguyên thứ tự options cố định theo seed để không bị nhảy lung tung làm lỗi radio"""
     shuffled = opts.copy()
     rnd = random.Random(seed_key)
     rnd.shuffle(shuffled)
@@ -640,7 +653,6 @@ with tabs[0]:
         saved_val = saved_answers.get(q_key, None)
         idx_val = q["options"].index(saved_val) if (saved_val is not None and saved_val in q["options"]) else None
         
-        # SỬA LỖI: Thêm index=index_val chuẩn xác để mặc định luôn là MÀU TRẮNG chưa chọn
         u_ans = st.radio("Choose:", q["options"], key=f"g1_opt_{selected_day}_{idx}", index=idx_val)
         if u_ans is not None:
             saved_answers[q_key] = u_ans
@@ -679,7 +691,6 @@ with tabs[1]:
         
         if q["type"] == "mcq":
             idx_val = q["options"].index(saved_val) if (saved_val is not None and saved_val in q["options"]) else None
-            # SỬA LỖI TRỰC TIẾP TẠI ĐÂY: Truyền index=idx_val (None nếu chưa chọn)
             u_ans = st.radio("Choose:", q["options"], key=f"gram_mcq_{selected_day}_{idx}", index=idx_val)
             if u_ans is not None:
                 saved_answers[q_key] = u_ans
