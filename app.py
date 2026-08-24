@@ -23,7 +23,7 @@ CUSTOM_CSS = """
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     }
     
-    h1, h2, h3, h4, h5, h6, p, div, span, label, li, td, th {
+    h1, h2, h3, h4, h5, h6, p, label, span, li, td, th {
         color: #000000 !important;
     }
 
@@ -39,19 +39,38 @@ CUSTOM_CSS = """
         border-radius: 8px !important;
     }
 
-    /* Custom CSS cho Radio Buttons: Nút tròn đen khi chưa chọn */
-    div[aria-label="radio"] label div:first-child,
-    div[role="radiogroup"] label div:first-child {
-        background-color: #1e1e1e !important;
-        border: 2px solid #000000 !important;
+    /* ==========================================
+       FIX CSS FOR RADIO BUTTONS (MULTIPLE CHOICE)
+       ========================================== */
+    /* Container của từng đáp án: Nền trắng, chữ đen */
+    div[role="radiogroup"] label,
+    div[aria-label="radio"] label,
+    div[data-testid="stRadio"] label {
+        background-color: transparent !important;
+        color: #000000 !important;
+        padding: 4px 8px !important;
+        border-radius: 6px !important;
+    }
+    
+    div[role="radiogroup"] label p,
+    div[aria-label="radio"] label p,
+    div[data-testid="stRadio"] label p {
+        color: #000000 !important;
+        background-color: transparent !important;
     }
 
-    /* Khi người dùng click chọn đáp án -> Hiển thị màu nổi bật (Hồng/Đỏ) */
-    div[aria-label="radio"] input:checked + div,
-    div[role="radiogroup"] input:checked + div {
-        background-color: #ff4b4b !important;
+    /* Vòng tròn outer khi CHƯA CHỌN: Màu đen/xám nhám */
+    div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] ~ div,
+    div[role="radiogroup"] label > div:first-child {
+        border-color: #000000 !important;
+        background-color: transparent !important;
+    }
+
+    /* Khi ĐÃ CHỌN: Đổi sang màu hồng/đỏ nổi bật */
+    div[role="radiogroup"] input:checked + div,
+    div[aria-label="radio"] input:checked + div {
         border-color: #ff4b4b !important;
-        box-shadow: inset 0 0 0 3px #ffffff !important;
+        background-color: #ff4b4b !important;
     }
 
     .stButton > button {
@@ -199,7 +218,6 @@ def query_groq_ai(prompt: str, fallback_ref: str = "") -> str:
             except Exception:
                 continue
 
-    # Dynamic Fallback if API Call is Unavailable or Fails
     ref_text = fallback_ref if fallback_ref else "The enterprise must leverage intellectual assets to enhance competitive advantage."
     return (
         "<b>Overall Score:</b> 7.5/10<br>"
