@@ -39,6 +39,21 @@ CUSTOM_CSS = """
         border-radius: 8px !important;
     }
 
+    /* Custom CSS cho Radio Buttons: Nút tròn đen khi chưa chọn */
+    div[aria-label="radio"] label div:first-child,
+    div[role="radiogroup"] label div:first-child {
+        background-color: #1e1e1e !important;
+        border: 2px solid #000000 !important;
+    }
+
+    /* Khi người dùng click chọn đáp án -> Hiển thị màu nổi bật (Hồng/Đỏ) */
+    div[aria-label="radio"] input:checked + div,
+    div[role="radiogroup"] input:checked + div {
+        background-color: #ff4b4b !important;
+        border-color: #ff4b4b !important;
+        box-shadow: inset 0 0 0 3px #ffffff !important;
+    }
+
     .stButton > button {
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -532,7 +547,7 @@ checked_states = st.session_state.user_progress["checked_states"][day_key]
 
 def render_question_feedback(q_id, user_ans, correct_ans, explanation):
     if checked_states.get(q_id, False):
-        if str(user_ans).strip().lower() == str(correct_ans).strip().lower():
+        if user_ans and str(user_ans).strip().lower() == str(correct_ans).strip().lower():
             st.markdown(
                 f"<div class='feedback-card-correct'>"
                 f"<b>✅ Correct Answer: {correct_ans}</b><br>"
@@ -588,8 +603,10 @@ with tabs[0]:
     for idx, q in enumerate(curr["g1_qs"]):
         st.markdown(f"**Question {idx+1}: {q['q']}**")
         q_key = f"g1_{idx}"
-        saved_val = saved_answers.get(q_key, q["options"][0])
-        u_ans = st.radio("Select option:", q["options"], key=f"g1_opt_{selected_day}_{idx}", index=q["options"].index(saved_val) if saved_val in q["options"] else 0)
+        saved_val = saved_answers.get(q_key, None)
+        idx_val = q["options"].index(saved_val) if (saved_val in q["options"]) else None
+        
+        u_ans = st.radio("Select option:", q["options"], key=f"g1_opt_{selected_day}_{idx}", index=idx_val)
         saved_answers[q_key] = u_ans
         
         if st.button(f"Check Answer G1.Q{idx+1}", key=f"btn_g1_{selected_day}_{idx}"):
@@ -622,12 +639,13 @@ with tabs[1]:
     for idx, q in enumerate(curr["grammar_qs"]):
         st.markdown(f"**{q['q']}**")
         q_key = f"gram_{idx}"
-        saved_val = saved_answers.get(q_key, "")
+        saved_val = saved_answers.get(q_key, None)
         
         if q["type"] == "mcq":
-            u_ans = st.radio("Choose:", q["options"], key=f"gram_mcq_{selected_day}_{idx}", index=q["options"].index(saved_val) if saved_val in q["options"] else 0)
+            idx_val = q["options"].index(saved_val) if (saved_val in q["options"]) else None
+            u_ans = st.radio("Choose:", q["options"], key=f"gram_mcq_{selected_day}_{idx}", index=idx_val)
         else:
-            u_ans = st.text_input("Fill in blank:", value=saved_val, key=f"gram_fill_{selected_day}_{idx}")
+            u_ans = st.text_input("Fill in blank:", value=saved_val if saved_val else "", key=f"gram_fill_{selected_day}_{idx}")
         
         saved_answers[q_key] = u_ans
         
@@ -648,12 +666,13 @@ with tabs[2]:
     for idx, q in enumerate(curr["reading_qs"]):
         st.markdown(f"**{q['q']}**")
         q_key = f"read_{idx}"
-        saved_val = saved_answers.get(q_key, "")
+        saved_val = saved_answers.get(q_key, None)
         
         if q["type"] == "mcq":
-            u_ans = st.radio("Select:", q["options"], key=f"read_opt_{selected_day}_{idx}", index=q["options"].index(saved_val) if saved_val in q["options"] else 0)
+            idx_val = q["options"].index(saved_val) if (saved_val in q["options"]) else None
+            u_ans = st.radio("Select:", q["options"], key=f"read_opt_{selected_day}_{idx}", index=idx_val)
         else:
-            u_ans = st.text_input("Your answer:", value=saved_val, key=f"read_txt_{selected_day}_{idx}")
+            u_ans = st.text_input("Your answer:", value=saved_val if saved_val else "", key=f"read_txt_{selected_day}_{idx}")
             
         saved_answers[q_key] = u_ans
         
@@ -675,12 +694,13 @@ with tabs[3]:
     for idx, q in enumerate(curr["listening_qs"]):
         st.markdown(f"**{q['q']}**")
         q_key = f"listen_{idx}"
-        saved_val = saved_answers.get(q_key, "")
+        saved_val = saved_answers.get(q_key, None)
         
         if q["type"] == "mcq":
-            u_ans = st.radio("Select option:", q["options"], key=f"listen_opt_{selected_day}_{idx}", index=q["options"].index(saved_val) if saved_val in q["options"] else 0)
+            idx_val = q["options"].index(saved_val) if (saved_val in q["options"]) else None
+            u_ans = st.radio("Select option:", q["options"], key=f"listen_opt_{selected_day}_{idx}", index=idx_val)
         else:
-            u_ans = st.text_input("Answer:", value=saved_val, key=f"listen_txt_{selected_day}_{idx}")
+            u_ans = st.text_input("Answer:", value=saved_val if saved_val else "", key=f"listen_txt_{selected_day}_{idx}")
             
         saved_answers[q_key] = u_ans
         
@@ -739,7 +759,7 @@ with tabs[5]:
         st.markdown(f"<div class='feedback-card-correct'><b>AI Speaking Assessment:</b><br>{checked_states['speaking_feedback']}</div>", unsafe_allow_html=True)
 
 # ------------------------------------------
-# TAB 7: TRANSLATION PRACTICE (FIXED SPECIFIC ERRORS & EXACT RECOMMENDATION MATCHING)
+# TAB 7: TRANSLATION PRACTICE
 # ------------------------------------------
 with tabs[6]:
     st.markdown("### 🌐 Vietnamese to C1 English Translation (10 Sentences)")
