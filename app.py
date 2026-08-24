@@ -112,13 +112,22 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 DATA_FILE = "user_progress.json"
 
 def load_user_data():
+    default_data = {"completed_days": [], "saved_answers": {}, "checked_states": {}}
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                # Sửa lỗi KeyError: Đảm bảo tất cả các key đều tồn tại ngay cả khi load file cũ
+                if "completed_days" not in data:
+                    data["completed_days"] = []
+                if "saved_answers" not in data:
+                    data["saved_answers"] = {}
+                if "checked_states" not in data:
+                    data["checked_states"] = {}
+                return data
         except Exception:
             pass
-    return {"completed_days": [], "saved_answers": {}, "checked_states": {}}
+    return default_data
 
 def save_user_data(data):
     try:
@@ -129,6 +138,14 @@ def save_user_data(data):
 
 if "user_progress" not in st.session_state:
     st.session_state.user_progress = load_user_data()
+
+# Đảm bảo chắc chắn thêm 1 lần nữa trong session state
+if "checked_states" not in st.session_state.user_progress:
+    st.session_state.user_progress["checked_states"] = {}
+if "saved_answers" not in st.session_state.user_progress:
+    st.session_state.user_progress["saved_answers"] = {}
+if "completed_days" not in st.session_state.user_progress:
+    st.session_state.user_progress["completed_days"] = []
 
 # ==========================================
 # 3. GROQ API KEY FROM SECRETS & AI EVALUATOR
@@ -174,7 +191,7 @@ def query_groq_ai(prompt: str) -> str:
             except Exception:
                 continue
 
-    # Standalone Offline Fallback Evaluator (Prevents API Endpoint Connection Error Interruptions)
+    # Standalone Offline Fallback Evaluator
     return (
         "<b>[Evaluation Result - Local C1 Assessment System]</b><br><br>"
         "• <b>Lexical Range & Choice (Score: 8.5/10):</b> Good usage of executive terminology. Try incorporating more C1 idiomatic collocations.<br>"
@@ -249,7 +266,7 @@ def get_curriculum(day_num: int):
         {"q": "5. Corporate ________ merged three logistics divisions into a unified operations center.", "ans": "consolidation", "exp": "'Consolidation' means uniting separate entities into one structure."}
     ]
 
-    # Grammar Rules + 10 Questions
+    # Grammar Theory + 10 Questions
     grammar_theory = f"""
     ### 📐 C1 Advanced Grammar: Inversion & Subjunctive Structures in {topic}
     
@@ -282,7 +299,7 @@ def get_curriculum(day_num: int):
         if g["type"] == "mcq":
             g["options"] = shuffle_options(g["options"], f"gram_{day_num}_{idx}")
 
-    # Reading Passage (Detailed >20 lines)
+    # Reading Passage
     reading_passage = f"""Paragraph 1: In the contemporary corporate environment, mastering the complexities of {topic.lower()} has transitioned from a competitive advantage to an absolute operational necessity. Organizations operating across multinational boundaries regularly encounter volatile market forces, demanding prompt, strategic interventions.
 
 Paragraph 2: Furthermore, structural cohesion across corporate divisions is mandatory. When alignment between executive directives and subsidiary operations breaks down, resource fragmentation and severe brand equity erosion follow almost immediately.
@@ -304,7 +321,7 @@ Paragraph 9: Crisis management protocols require predefined escalation pathways.
 Paragraph 10: In conclusion, achieving sustained success in {topic.lower()} requires a multi-faceted operational strategy. Executive leaders must synthesize regulatory compliance, digital modernization, and prudent financial oversight into a unified enterprise framework."""
 
     reading_qs = [
-        {"type": "mcq", "q": "Q1: What transition regarding the topic is highlighted in Paragraph 1?", "options": [f"Mastering {topic.lower()} became an absolute necessity", "It was rendered obsolete by new laws", "It was declared optional for global firms", "It decreased in total corporate value"], "ans": f"Mastering {topic.lower()} became an absolute necessity", "exp": "Paragraph 1 states it transitioned to an absolute operational necessity."},
+        {"type": "mcq", "q": "Q1: What transition regarding the topic is highlighted in Paragraph 1?", "options": [f"Mastering {topic.lower()} became an absolute necessity", "It was declared optional for global firms", "It was rendered obsolete by new laws", "It decreased in total corporate value"], "ans": f"Mastering {topic.lower()} became an absolute necessity", "exp": "Paragraph 1 states it transitioned to an absolute operational necessity."},
         {"type": "mcq", "q": "Q2: According to Paragraph 2, what follows when alignment between executive directives and operations breaks down?", "options": ["Resource fragmentation and brand erosion", "Immediate stock price doubles", "Lower employee turnover", "Reduced oversight costs"], "ans": "Resource fragmentation and brand erosion", "exp": "Paragraph 2 explicitly states resource fragmentation and brand erosion follow breakdown of alignment."},
         {"type": "mcq", "q": "Q3: How often should corporate governance frameworks be re-evaluated according to Paragraph 3?", "options": ["On a continuous quarterly basis", "Once every decade", "Only during audits", "Bi-annually"], "ans": "On a continuous quarterly basis", "exp": "Paragraph 3 states governance frameworks must be re-evaluated on a continuous quarterly basis."},
         {"type": "mcq", "q": "Q4: What risk is highlighted in Paragraph 6 regarding single-source supplier dependencies?", "options": ["Exacerbating operational disruption", "Increasing cash reserves", "Improving logistics speed", "Lowering tax liabilities"], "ans": "Exacerbating operational disruption", "exp": "Paragraph 6 emphasizes single-source dependencies exacerbate operational disruption."},
@@ -316,7 +333,7 @@ Paragraph 10: In conclusion, achieving sustained success in {topic.lower()} requ
         if g["type"] == "mcq":
             g["options"] = shuffle_options(g["options"], f"read_{day_num}_{idx}")
 
-    # Listening Briefing (>3 min script)
+    # Listening Briefing
     listening_script = f"""[Executive Audio Briefing Track - Target Duration: 3+ Minutes]
 
 Welcome, members of the Executive Operating Board. Today’s strategic briefing focuses specifically on critical directives concerning {topic.lower()}. As we prepare our enterprise for the upcoming fiscal quarter, it is paramount that every division head understands the operational parameters outlined in this report.
@@ -344,7 +361,7 @@ In conclusion, maintaining market leadership in {topic.lower()} requires unwaver
         if g["type"] == "mcq":
             g["options"] = shuffle_options(g["options"], f"listen_{day_num}_{idx}")
 
-    # Detailed Writing Scenario with Rich Context & Numbers
+    # Detailed Writing Scenario
     writing_scenario = f"""### ✍️ Detailed Executive Memorandum Task
 
 **Corporate Case Study Background:**
@@ -393,7 +410,7 @@ Deliver a 2-minute strategic presentation addressing:
 3. Expected ROI and efficiency gains using C1-level vocabulary (e.g., *leverage, mitigate, viability, synergy*).
 """
 
-    # Translation 10 Questions
+    # Translation Questions
     translation_qs = [
         {"vi": f"1. Ban giám đốc đã thông qua chiến lược quản trị rủi ro mới trong chủ đề {topic.lower()}.", "ans": f"The board of directors approved the new risk management strategy regarding {topic.lower()}."},
         {"vi": "2. Việc tuân thủ quy định pháp lý là điều kiện bắt buộc để mở rộng doanh nghiệp.", "ans": "Regulatory compliance is mandatory for expanding the enterprise."},
@@ -504,7 +521,7 @@ with st.sidebar:
         format_func=lambda d: f"Day {d}: {DAY_TOPICS[d-1]}"
     )
     
-    completed = st.session_state.user_progress["completed_days"]
+    completed = st.session_state.user_progress.get("completed_days", [])
     pct = int((len(completed) / 30) * 100)
     
     st.markdown("### 📊 Overall Progress")
@@ -528,7 +545,7 @@ with st.sidebar:
 
 curr = get_curriculum(selected_day)
 
-# Initialize Session Data Dicts
+# Initialize Session Data Dicts Safely
 day_key = f"day_{selected_day}"
 if day_key not in st.session_state.user_progress["saved_answers"]:
     st.session_state.user_progress["saved_answers"][day_key] = {}
